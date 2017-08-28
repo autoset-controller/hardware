@@ -1,5 +1,5 @@
 # Autoset Controller
-> Additional information or tag line
+> Theatrical Controller for Thesis Project
 
 Program for wireless control of motorized platforms in a stage space.
 
@@ -23,7 +23,7 @@ using the project.
 
 ## Style guide
 
-Explain your code style and show how to check it.
+Our git style will be implemented from [Wearhive's project guidelines](https://github.com/wearehive/project-guidelines#git).
 
 ## Api Reference
 
