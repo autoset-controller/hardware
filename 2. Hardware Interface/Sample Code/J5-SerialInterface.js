@@ -1,5 +1,8 @@
 let serialport = require('serialport');
+let dgram = require('dgram');
+
 let port = new serialport('COM9');
+let sendSocket = dgram.createSocket('udp4');
 
 let store = false;
 let label = ''; //tracks label of input radio
@@ -20,6 +23,12 @@ port.on('data', function (data) {
                 let packageString = 'New Package: \nFrom Radio ' + label + '\n';
                 packageString += 'Value = ' + value;
                 console.log(packageString);
+                if(label == 'A') { //If signal is from radio A
+                    sendSocket.send(value, 50000, 'localhost');
+                }
+                else { //If signal is from radio B
+                    sendSocket.send(value, 50001, 'localhost');
+                }
             }
             else {
                 console.log('invalid serial input: ' + label + breaker + value);
