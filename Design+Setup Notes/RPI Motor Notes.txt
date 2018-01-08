@@ -1,0 +1,11 @@
+Current configuration uses pulse width modulation mode via the SyRen motor controller.
+
+Minimum signal that produces movement is: 80
+Minimum signal that produces tangible force is: 256
+Maximum signal is: 1024
+Field tests will need to be run to determine what the actual minimum is when the motor has weight on it.
+
+There are multiple pins that can handle OS-level pwm signals. 
+For the purpose of this project, pins 12 and 32 (1 and 26, in wiringPi) will be used.
+(Alternatively, a serial packet-based control system could be used, as the motor controllers can handle that.
+This decision will depend on how well the TXD (wire-based) serial connection can be established.

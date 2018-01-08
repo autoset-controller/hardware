@@ -1,0 +1,80 @@
+Repeat steps 1-6 for both computers:
+
+1. Connect your raspberry pi to:
+	a power source (via the micro-usb port)
+	a monitor (via the HDMI port)
+	a keyboard (via one of the USB ports)
+	
+	The raspberry pi should begin a boot sequence.
+
+2. After the boot sequence completes, login with the following credentials:
+	username: pi
+	password: raspberry 
+	(these are the default credentials for a raspberry pi.)
+	
+
+3. Configure your raspberry pi to login automatically by doing the following:
+	$ sudo su (grants admin privileges indefinitely)
+	# cd /etc (moves to the etc folder)
+	# pico inittab (opens the initialization file in a text editor)
+	change the following line:
+		1:2345:respawn:/sbin/getty 38400 tty1 
+		(or the closest match, there may be additional arguments in the line)
+	to the following:
+		1:2345:respawn:/sbin/getty --autologin pi 38400 tty1
+	Exit (ctrl + x), save (y), and confirm filename (enter/return).
+	
+	The raspberry pi should now login automatically when powered.
+	To test this, type 'reboot' into the console.
+	The raspberry pi should restart and boot to a shell prompt, rather than a login prompt.
+
+4. Connect raspberry pi to internet:
+	Connect your raspberry pi to your router via ethernet cable.
+	# reboot
+	Test your internet connection using:
+	# ping -c3 8.8.8.8
+	If packet loss != 100%, continue.
+	Otherwise, try the following:
+	# pico /etc/network/interfaces
+	Rewrite the file to look like this:
+		auto lo
+		
+		iface lo inet loopback
+		iface eth0 inet dhcp
+
+		allow-hotplug wlan0
+		iface wlan0 inet manual
+		wpa-roam /etc/wpa_supplicant/wpa_supplicant.conf
+		iface default inet dhcp
+	This will allow your router to automatically assign an ip address to your raspberry pi.
+	# reboot
+	Test your internet connection again. If it doesn't work, you'll have to troubleshoot on your own.
+
+5. Install required libraries:
+	Git Installation:
+	This library supports the git interface, which allows for downloads of git projects.
+	# apt-get install git-core
+	WiringPi Installation:
+	This library supports the pin interface for the raspberry pi.
+	# git clone git://git.drogon.net/wiringPi
+	# cd wiringPi
+	# ./build
+
+	If you encounter issues with this, go to wiringpi.com/download-and-install and follow the instructions under part A.
+
+6. Test wiringPi:
+	To confirm that wiringPi is properly installed, run the following command:
+	# gpio readall
+	You should see a table of pin numbers, pin modes, and pin states. Pay attention to the wPi and Physical values.
+	The programs provided use the wPi numbering system.
+
+7. Install programs:
+	The platform runs on a two-brain system - one raspberry pi controls the motors, one reads the encoders.
+	
+	Computer A will recieve commands and control the motors. 
+	Copy and build the program motorMain.c onto computer A.
+	# gcc motorMain.c -o motorMain -lwiringPi
+
+	Computer B will read the encoders, calculate position data, and send the information to the desktop.
+	Copy and build the program encoderMain.c onto computer B.
+	# gcc encoderMain.c -o encoderMain -lwiringPi

@@ -1,0 +1,29 @@
+With the current setup (i.e. each interrupt merely increments position, and calculations are run in main):
+Maximum platform speed is approximately 0.78 ft/s, or .24 m/s, assuming encoder wheel radius of 6".
+Moving any faster would result in dropped/misinterpreted interruptions.
+
+To improve the permissible speed of the platform while maintaining position consistency, there are two options:
+- Reduce the rotation rate of the encoder - e.g. increase wheel size, or gear down the encoder.
+- Reduce the fidelity of the encoder - e.g. use a 256 P/R encoder, rather than a 1024 P/R encoder.
+
+The second option has the added benefit of reducing the cost of the platform.
+However, both options sacrifice accuracy in the sense that fewer ticks will be counted.
+They will cause the platform path to become less certain in a shorter time, because they will multiply error.
+
+To determine the optimal ratio of fidelity to speed, practical tests must be run.
+To that end, I will focus on making the communication program (between platform and desktop) functional.
+After that, fidelity tracking will begin.
+
+Acceptable error per cycle: .1 cm
+Encoder position error = 2*pi*r / TICKS_PER_CYCLE
+Assuming 6" radius, 4096 ticks per cycle: error = .023 cm, well within acceptable bounds.
+Assuming 6" radius, 1024 ticks per cycle: error = .094 cm, just within acceptable bounds.
+
+The 1024 ticks per cycle error is recommended, as it will permit speeds of approximately 1 m/s.
+As increasing the wheel size is not a viable option (the platform is only 8"), the following options are recommended:
+- Gear encoder for torque by 4:1
+	-or-
+- Swap to 256 P/R encoder
+
+
+
