@@ -9,3 +9,18 @@ There are multiple pins that can handle OS-level pwm signals.
 For the purpose of this project, pins 12 and 32 (1 and 26, in wiringPi) will be used.
 (Alternatively, a serial packet-based control system could be used, as the motor controllers can handle that.
 This decision will depend on how well the TXD (wire-based) serial connection can be established.
+
+Pin Setup:
+
+Motor Controller 5V: 5V (GPIO 4)
+Motor Controller 0V: 0V (GPIO 6)
+Motor Controller S1: 1/26 (GPIO 12/32)
+Motor Controller S2: 0/2 (GPIO 11/13)
+
+Pins must go through the circuit outlined at the following link, page 13, fig 4.2:
+https://www.dimensionengineering.com/datasheets/SyRen50.pdf
+This will smooth out PWM and make it act as an analog output.
+
+TODO: 
+- Introduce emergency stop mechaninism (e.g. switch activated by button on side of platform.
+  This stop mechanism must stop both motors until power is cycled (or until reset switch is activated).
