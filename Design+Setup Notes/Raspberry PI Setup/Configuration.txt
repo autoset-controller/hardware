@@ -1,34 +1,107 @@
+
 Repeat steps 1-6 for both computers:
 
-1. Connect your raspberry pi to:
-	a power source (via the micro-usb port)
-	a monitor (via the HDMI port)
-	a keyboard (via one of the USB ports)
+1. Setup:
+	Connect your raspberry pi to:
+		a 5V power source (via the micro-usb port)
+		a monitor (via the HDMI port)
+		a keyboard (via one of the USB ports)
 	
-	The raspberry pi should begin a boot sequence.
+	If the pi opens up to a graphical desktop (i.e. not command line):
+		Connect your raspberry pi to a mouse. (via one of the USB ports)
+		Open the terminal.
+		Run $sudo su to gain root privileges
+		# raspi-config
+		3. Boot Options->B1. Desktop or CLI->B2. Command Line Interface + Automatic login
+		3. Boot Options->B3. Splash Screen->Disable Splash Screen
+		Finish, reboot.
+		Disconnect the mouse.
 
-2. After the boot sequence completes, login with the following credentials:
-	username: pi
-	password: raspberry 
-	(these are the default credentials for a raspberry pi.)
+	If the pi opens up to command line interface with required login:
+		Login with the following credentials:
+			username: pi
+			password: raspberry
+			(Or whatever username/password the pi is set up with)
+		Run $sudo su to gain root privileges
+		# raspi-config
+		3. Boot Options->B1. Desktop or CLI->B2. Command Line Interface + Automatic login
+		Finish, reboot.
 	
-
-3. Configure your raspberry pi to login automatically by doing the following:
-	$ sudo su (grants admin privileges indefinitely)
-	# cd /etc (moves to the etc folder)
-	# pico inittab (opens the initialization file in a text editor)
-	change the following line:
-		1:2345:respawn:/sbin/getty 38400 tty1 
-		(or the closest match, there may be additional arguments in the line)
-	to the following:
-		1:2345:respawn:/sbin/getty --autologin pi 38400 tty1
-	Exit (ctrl + x), save (y), and confirm filename (enter/return).
+	If typing Shift+3 brings up a pound symbol, rather than #:
+		$ sudo su
+		# raspi-config
+		4. Internationalisation Options->Keyboard Config
+		Choose generic 101-key
+		You will see a list of UK keyboards. Choose Other.
+	 	Choose English (US).
+		Select default keyboard settings (i.e. English(US), no modifications).
+		Finish, reboot.
 	
-	The raspberry pi should now login automatically when powered.
-	To test this, type 'reboot' into the console.
-	The raspberry pi should restart and boot to a shell prompt, rather than a login prompt.
+3. Install required libraries:
+	In /home/pi, create a new Autoset directory:
+	$ mkdir Autoset
 
-4. Connect raspberry pi to internet:
+	Gain root access again by running $ sudo su.
+	wiringPi (original instructions at http://wiringpi.com/download-and-install/ under Plan B):
+		On the Raspberry Pi...
+			purge the current installation of wiringPi (it's outdated):
+			# apt-get purge wiringpi
+			# reboot	
+		On an internet-connected computer...
+			Go to https://git.drogon.net/?p=wiringPi;a=summary, and download the most recent snapshot.
+			(As of 2018-01-21, most recent snapshot is 'Fixed GPIO based address for Pi Zero-W').
+			Move the downloaded tar.gz file to a flash drive.
+		On the Raspberry Pi...
+			Connect the flash drive to the RPi.
+			Check the id of the flash drive by running the following command:
+			# tail -f /var/log/messages
+			Look for a message with the format "sda/sda#" (e.g. sda/sda1). sda# is the id of the flash drive.
+			Mount the flash drive by running the following commands:
+			# cd /media
+			# mkdir flash
+			# mount -t vfat -o rw /dev/sda# /media/flash
+			Move the .tar.gz file to your local Autoset directory:
+			(Note that the wiringPi file name may differ.)		
+			# cd /media/flash
+			# cp wiringPi-96344ff.tar.gz /home/pi/Autoset
+			Extract the library and compile it:
+			# cd /home/pi/Autoset
+			# tar xfz wiringPi-96344ff.tar.gz
+			# cd wiringPi-96344ff.tar.gz
+			# ./build
+		Note: Running ./build may encounter a fatal error, and reboot the system. 
+		If this happens, do the following until successful:
+			$ sudo su
+			# cd Autoset
+			# rm -rf wiringPi-96344ff.tar.gz
+			# tar xfz wiringPi-96344ff.tar.gz
+			# cd wiringPi-96344ff.tar.gz
+			# ./build
+
+4. Test libraries:
+	Before testing, reboot the system and reestablish root privileges:
+	# reboot
+	$sudo su
+
+	To confirm that wiringPi is properly installed, run the following command:
+	# gpio readall
+	You should see a table of pin numbers, pin modes, and pin states. Pay attention to the wPi and Physical values.
+	The programs provided use the wPi numbering system.
+	If this fails, see the Note on wiringPi in step 3.
+
+5. Install programs:
+	The platform runs on a two-brain system - one raspberry pi controls the motors, one reads the encoders.
+	
+	Computer A will recieve commands and control the motors. 
+	Copy and build the program motorMain.c onto computer A.
+	# gcc motorMain.c -o motorMain -lwiringPi
+
+	Computer B will read the encoders, calculate position data, and send the information to the desktop.
+	Copy and build the program encoderMain.c onto computer B.
+	# gcc encoderMain.c -o encoderMain -lwiringPi
+
+Notes:
+Connect raspberry pi to internet:
 	Connect your raspberry pi to your router via ethernet cable.
 	# reboot
 	Test your internet connection using:
@@ -50,31 +123,21 @@ Repeat steps 1-6 for both computers:
 	# reboot
 	Test your internet connection again. If it doesn't work, you'll have to troubleshoot on your own.
 
-5. Install required libraries:
-	Git Installation:
-	This library supports the git interface, which allows for downloads of git projects.
-	# apt-get install git-core
-	WiringPi Installation:
-	This library supports the pin interface for the raspberry pi.
-	# git clone git://git.drogon.net/wiringPi
-	# cd wiringPi
-	# ./build
-
-	If you encounter issues with this, go to wiringpi.com/download-and-install and follow the instructions under part A.
-
-6. Test wiringPi:
-	To confirm that wiringPi is properly installed, run the following command:
-	# gpio readall
-	You should see a table of pin numbers, pin modes, and pin states. Pay attention to the wPi and Physical values.
-	The programs provided use the wPi numbering system.
-
-7. Install programs:
-	The platform runs on a two-brain system - one raspberry pi controls the motors, one reads the encoders.
+Configure your raspberry pi to login automatically:
+	$ sudo su (grants admin privileges indefinitely)
+	# cd /etc (moves to the etc folder)
+	# pico inittab (opens the initialization file in a text editor)
+	change the following line:
+		1:2345:respawn:/sbin/getty 38400 tty1 
+		(or the closest match, there may be additional arguments in the line)
+	to the following:
+		1:2345:respawn:/sbin/getty --autologin pi 38400 tty1
+	Exit (ctrl + x), save (y), and confirm filename (enter/return).
 	
-	Computer A will recieve commands and control the motors. 
-	Copy and build the program motorMain.c onto computer A.
-	# gcc motorMain.c -o motorMain -lwiringPi
+	The raspberry pi should now login automatically when powered.
+	To test this, type 'reboot' into the console.
+	The raspberry pi should restart and boot to a shell prompt, rather than a login prompt.
 
-	Computer B will read the encoders, calculate position data, and send the information to the desktop.
-	Copy and build the program encoderMain.c onto computer B.
-	# gcc encoderMain.c -o encoderMain -lwiringPi
+Default Credentials:
+	username: pi
+	password: raspberry
