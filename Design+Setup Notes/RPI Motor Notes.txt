@@ -12,10 +12,10 @@ This decision will depend on how well the TXD (wire-based) serial connection can
 
 Pin Setup:
 
-Motor Controller 5V: 5V (GPIO 4)
-Motor Controller 0V: 0V (GPIO 6)
-Motor Controller S1: 1/26 (GPIO 12/32)
-Motor Controller S2: 0/2 (GPIO 11/13)
+Motor Controller 5V: 5V (Pin 4)
+Motor Controller 0V: 0V (Pin 6)
+Motor Controller S1: 1/26 (Pins 12/32)
+Motor Controller S2: 0/2 (Pins 11/13)
 
 Pins must go through the circuit outlined at the following link, page 13, fig 4.2:
 https://www.dimensionengineering.com/datasheets/SyRen50.pdf
