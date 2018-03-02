@@ -1,7 +1,7 @@
 
 Repeat steps 1-6 for both computers:
 
-1. Setup:
+1. Interface Setup:
 	Connect your raspberry pi to:
 		a 5V power source (via the micro-usb port)
 		a monitor (via the HDMI port)
@@ -14,7 +14,7 @@ Repeat steps 1-6 for both computers:
 		# raspi-config
 		3. Boot Options->B1. Desktop or CLI->B2. Command Line Interface + Automatic login
 		3. Boot Options->B3. Splash Screen->Disable Splash Screen
-		Finish, reboot.
+		Finish, # reboot.
 		Disconnect the mouse.
 
 	If the pi opens up to command line interface with required login:
@@ -25,7 +25,7 @@ Repeat steps 1-6 for both computers:
 		Run $sudo su to gain root privileges
 		# raspi-config
 		3. Boot Options->B1. Desktop or CLI->B2. Command Line Interface + Automatic login
-		Finish, reboot.
+		Finish, # reboot.
 	
 	If typing Shift+3 brings up a pound symbol, rather than #:
 		$ sudo su
@@ -35,8 +35,21 @@ Repeat steps 1-6 for both computers:
 		You will see a list of UK keyboards. Choose Other.
 	 	Choose English (US).
 		Select default keyboard settings (i.e. English(US), no modifications).
-		Finish, reboot.
+		Finish, # reboot.
+
+2. Enable UART serial port:
+	$ sudo su
+	# raspi-config
+	8. Advanced Options->A8. Serial->Disable
+	(This prevents boot info from being sent from the UART port, which would cause errors with the motor controllers).
 	
+	# nano /dev/cmdline.txt
+	At the end of the file, replace 'enable_uart=0' with 'enable_uart=1'
+	# reboot
+
+	UART serial port should now be enabled. 
+	Connect GPIO pins 14 and 15 (TxD and RxD) and run # ./serial_test in ~/Autoset to test the connection.
+
 3. Install required libraries:
 	In /home/pi, create a new Autoset directory:
 	$ mkdir Autoset
