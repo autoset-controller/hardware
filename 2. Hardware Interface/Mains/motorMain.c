@@ -154,22 +154,23 @@ void getSerialData() {
 					}
 					break;
 				case 2:
+					DEBUG("Checking for E_STOP...\n");
+					if(strcmp(plat_in_str, "E_STOP") == 0) {
+						DEBUG("emergency stop recieved!\n");
+						//Set all values to stop values
+						targetL = 0;
+						targetR = 0;
+						speedL = 0;
+						speedR = 0;
+						accelDelayL = 0;
+						accelDelayR = 0;
+						writeMotors();
+						DEBUG("emergency stop processed\n");
+					}
+
 					plat_in = atoi(plat_in_str);
 					if(plat_in != platform) {
-						if(strcmp(target_in, "E_STOP")) {
-							//Set all values to stop values
-							target_L = 0;
-							target_R = 0;
-							speedL = 0;
-							speedR = 0;
-							accelDelayL = 0;
-							accelDelayR = 0;
-							writeMotors();
-							DEBUG("emergency stop processed\n");
-						}
-						else {
-							DEBUG("ignoring packet: platform mismatch\n");
-						}
+						DEBUG("ignoring packet: platform mismatch\n");
 						clearLine(serialXBee);
 						clearPacket();
 					}
