@@ -17,10 +17,12 @@
 #define MOTOR_MIN 0
 #define MOTOR_MAX 127
 
-#define PACKET_ARGS 8
+#define PACKET_ARGS 9
+#define ALL_TYPES 999
 
 //Forward Decl
 void getSerialData();
+int processCommand(int, int, int, int, int);
 void updateSpeeds();
 void clearLine(int);
 void clearPacket();
@@ -45,12 +47,14 @@ char delim = '|'; //delimeter for packet processing
 int key = 1234;
 int platform = 0;
 int type = 0; //type = 0 for motor brain, 1 for encoder brain.
+char mac_address[256]; //MAC address of brain
 
 //values for packet input
 char key_in_str[128] = "\0";
 char plat_in_str[128] = "\0";
 char target_in_str[128] = "\0";
 char id_in_str[128] = "\0";
+char comm_in_str[128] = "\0";
 char target_L_in_str[128] = "\0";
 char target_R_in_str[128] = "\0";
 char accel_time_in_str[128] = "\0";
@@ -60,6 +64,7 @@ int key_in; //value should be positive int matching key
 int plat_in; //value should be positive int matching platform
 int target_in; //value should be positive int matching type
 int id_in;
+int comm_in;
 int target_L_in; //value should be int in range of -1024 to 1024
 int target_R_in; //value should be int in range of -1024 to 1024
 int accel_time_in; //value should be int greater than 0
@@ -72,10 +77,16 @@ int update = 0;
 int main(int argc, char* argv)  {
 
 	DEBUG("Booting Motor Controllers...\n");
-	delay(3000);
+	delay(2000);
 	DEBUG(" Done\n");
 
 	DEBUG("Starting Motor Brain...\n");
+
+	DEBUG("MAC address: ");
+	FILE *mac = fopen("/sys/class/net/eth0/address", "r");
+	fgets(mac_address, 255, mac);
+	fclose(mac);
+	DEBUG("%s\n", mac_address);
 
 	wiringPiSetup();
 	serialXBee = serialOpen("/dev/ttyUSB0", 57600);
@@ -134,9 +145,10 @@ int main(int argc, char* argv)  {
 
 //PROCESS SERIAL INPUT:
 //Processes any waiting serial input and loads it into a packet
-//Standard packet: sets target speeds to target_R and target_L, sets corresponding accelDelay.
+//Standard packet 0: sets target speeds to target_R and target_L, sets corresponding accelDelay.
+//Standard packet 1: modifies attributes: 0 = key (int), 1 = platform id (int)
 //E_STOP: sets target speeds, speeds, and accelDelay to 0, writes values to motors.
-//TODO: ATTRIBUTES_MODIFY: modify key or platform according to inputs
+//PAUSE: sets target speeds to 0, accelDelays to 2 seconds (overall), calls motor update.
 void getSerialData() {
 	while(serialDataAvail(serialXBee) > 0) {
 		char c = (char)serialGetchar(serialXBee);
@@ -167,6 +179,17 @@ void getSerialData() {
 						writeMotors();
 						DEBUG("emergency stop processed\n");
 					}
+					DEBUG("Checking for PAUSE...\n");
+					if(strcmp(plat_in_str, "PAUSE") == 0) {
+						DEBUG("pause command recieved!\n");
+						//Set all target values to stop
+						targetL = 0;
+						targetR = 0;
+						accelDelayL = (int)(1000.0 / (double)speedL);
+						accelDelayR = (int)(1000.0 / (double)speedR);
+						update = 1;
+						DEBUG("pause processed\n");
+					}
 
 					plat_in = atoi(plat_in_str);
 					if(plat_in != platform) {
@@ -177,7 +200,7 @@ void getSerialData() {
 					break;
 				case 3:
 					target_in = atoi(target_in_str);
-					if(target_in != type) {
+					if(target_in != type && target_in != ALL_TYPES) {
 						DEBUG("ignoring packet: type mismatch\n");
 						clearLine(serialXBee);
 						clearPacket();
@@ -201,6 +224,7 @@ void getSerialData() {
 			DEBUG("plat_in: %s\n", plat_in_str);
 			DEBUG("target_in: %s\n", target_in_str);
 			DEBUG("id_in: %s\n", id_in_str);
+			DEBUG("comm_in: %s\n", comm_in_str);
 			DEBUG("target_L_in: %s\n", target_L_in_str);
 			DEBUG("target_R_in: %s\n", target_R_in_str);
 			DEBUG("accel_time_in: %s\n", accel_time_in_str);
@@ -218,29 +242,12 @@ void getSerialData() {
 			}
 			//Otherwise, we need to check and see if the values are valid.
 			else {
-				//target_L should be a number smaller than the MOTOR_MAX. Otherwise, packet is bad.
+				comm_in = atoi(comm_in_str);
 				target_L_in = atoi(target_L_in_str);
-				if(target_L_in < -MOTOR_MAX || target_L_in > MOTOR_MAX) {
-					isBad = 1;
-					DEBUG("target_L out of bounds: %d\n", target_L_in);
-				}
-				//target_R should be a number smaller than the MOTOR_MAX. Otherwise, packet is bad.
 				target_R_in = atoi(target_R_in_str);
-				if(MOTOR_MAX < -1024 || target_R_in > MOTOR_MAX) {
-					isBad = 1;
-					DEBUG("target_R out of bounds: %d\n", target_R_in);
-				}
 				accel_time_in = atoi(accel_time_in_str);
-				if(accel_time_in < 0) {
-					isBad = 1;
-					DEBUG("accel_time out of bounds: %d\n", accel_time_in);
-				}
-				//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
 				checkSum_in = atoi(checkSum_in_str);
-				if(checkSum_in != target_L_in + target_R_in + accel_time_in) {
-					isBad = 1;
-					DEBUG("checkSum does not match: %d != %d + %d + %d\n", checkSum_in, target_L_in, target_R_in, accel_time_in);
-				}
+				isBad = processCommand(comm_in, target_L_in, target_R_in, accel_time_in, checkSum_in);
 			}
 			if(!ignore) {
 				char badString[8] = "bad:";
@@ -253,18 +260,6 @@ void getSerialData() {
 				else {
 					strcat(goodString, id_in_str);
 					pString = goodString;
-					//set motor values
-					targetL = target_L_in;
-					targetR = target_R_in;
-					float diffR, diffL;
-					diffL = abs(speedL - targetL);
-					diffR = abs(speedR - targetR);
-					float accelDelay = (float)accel_time_in * 1000.0 * 2 / (diffL + diffR);
-					printf("delay: %f\n", accelDelay);
-					accelDelayL = (float)accelDelay * diffL / (diffL + diffR);
-					accelDelayR = (float)accelDelay * diffR / (diffL + diffR);
-					printf("left delay: %d, right delay %d\n", accelDelayL, accelDelayR);
-					update = 1;
 				}
 				//acknowledge packet
 				DEBUG("sending packet %s...\n", pString);
@@ -285,47 +280,113 @@ void getSerialData() {
 					strcat(key_in_str, tmp); //add next char to key
 					break;
 
-				//process platform entry
+				//load platform entry
 				case 1:
 					strcat(plat_in_str, tmp); //add next char to platform
 					break;
 
-				//process target entry
+				//load target entry
 				case 2:
 					strcat(target_in_str, tmp); //add next char to target
 					break;
 
+				//load id entry
 				case 3:
 					strcat(id_in_str, tmp); //add next char to id
 					break;
 
-				//process target_L entry
+				//load comm entry
 				case 4:
+					strcat(comm_in_str, tmp); //add next char to comm
+					break;
+
+				//load target_L entry
+				case 5:
 					strcat(target_L_in_str, tmp); //add next char to target_L
 					break;
 
-				//process target_R entry
-				case 5:
+				//load target_R entry
+				case 6:
 					strcat(target_R_in_str, tmp); //add next char to target_R
 					break;
 
-				//process target_R entry
-				case 6:
+				//load target_R entry
+				case 7:
 					strcat(accel_time_in_str, tmp); //add next char to target_R
 					break;
 
-				//process checkSum entry
-				case 7:
+				//load checkSum entry
+				case 8:
 					strcat(checkSum_in_str, tmp); //add next char to checksum
 					break;
 
-				//all values processed
+				//all values loaded
 				default:
 
 					break;
 			}
 		}
 	}
+}
+
+//Process Command
+int processCommand(int comm_in, int val1, int val2, int val3, int checkSum) {
+	int isBad = 0;
+	switch(comm_in) {
+		//SET MOTOR VALUES
+		case 0:
+			//target_L should be a number smaller than the MOTOR_MAX. Otherwise, packet is bad.
+			if(val1 < -MOTOR_MAX || val1 > MOTOR_MAX) {
+				isBad = 1;
+				DEBUG("target_L out of bounds: %d\n", val1);
+			}
+			//target_R should be a number smaller than the MOTOR_MAX. Otherwise, packet is bad.
+			if(val2 < -MOTOR_MAX || val2 > MOTOR_MAX) {
+				isBad = 1;
+				DEBUG("target_R out of bounds: %d\n", val2);
+			}
+			if(val3 < 0) {
+				isBad = 1;
+				DEBUG("accel_time out of bounds: %d\n", val3);
+			}
+			//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
+			if(checkSum != target_L_in + target_R_in + accel_time_in) {
+				isBad = 1;
+				DEBUG("checkSum does not match: %d != %d + %d + %d\n", checkSum, val1, val2, val3);
+			}
+			//set motor values
+			if(!isBad) {
+				targetL = target_L_in;
+				targetR = target_R_in;
+				float diffR, diffL;
+				diffL = abs(speedL - targetL);
+				diffR = abs(speedR - targetR);
+				float accelDelay = (float)accel_time_in * 1000.0 * 2 / (diffL + diffR);
+				printf("delay: %f\n", accelDelay);
+				accelDelayL = (float)accelDelay * diffL / (diffL + diffR);
+				accelDelayR = (float)accelDelay * diffR / (diffL + diffR);
+				printf("left delay: %d, right delay %d\n", accelDelayL, accelDelayR);
+				update = 1;
+			}
+			break;
+		case 1:
+			switch(val1) {
+				//set key
+				case 0:
+					key = val2;
+					DEBUG("new key: %d\n", key);
+					break;
+				//set platform id
+				case 1:
+					platform = val2;
+					DEBUG("new platform id: %d\n", platform);
+					break;
+				default:
+					DEBUG("unknown value\n");
+					break;
+			}
+	}
+	return isBad;
 }
 
 ///PIN FUNCTIONS:
@@ -403,6 +464,7 @@ void clearPacket() {
 	plat_in_str[0] = '\0';
 	target_in_str[0] = '\0';
 	id_in_str[0] = '\0';
+	comm_in_str[0] = '\0';
 	target_L_in_str[0] = '\0';
 	target_R_in_str[0] = '\0';
 	accel_time_in_str[0] = '\0';

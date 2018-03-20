@@ -18,12 +18,15 @@
 #define XBEE_BAUD 57600
 #define UPDATE_SIZE_MAX 128
 #define UPDATE_SIZE_MIN 16
-double TICKS_PER_CYCLE = 4096;
+#define ALL_TYPES 999
+
+char mac_address[256]; //MAC address (eth0) of brain
 
 int update_size = 64; //minimum # updates to trigger a packet send
 int update_match = 0;
 double radius = .25 * .3048; //radius of encoder wheels (m)
 double base = 1 * .3048; //distance from encoder wheels to center (m)
+double TICKS_PER_CYCLE = 4096; //P/R on encoder * 4
 
 //forward decl
 void phaseA_R();
@@ -88,6 +91,14 @@ double checksum_in;
 int main(int argc, char* argv)  {
 
 	DEBUG("Encoder Test:\n");
+
+	DEBUG("MAC address: ");
+	FILE* mac = fopen("/sys/class/net/eth0/address", "r");
+	//DEBUG("mac open\n");
+	fgets(mac_address, 255, mac);
+	//DEBUG("got mac_address\n");
+	fclose(mac);
+	DEBUG("%s\n", mac_address);
 
 	wiringPiSetup();
 	serialPort = serialOpen("/dev/ttyUSB0", XBEE_BAUD);
@@ -324,7 +335,7 @@ void readPacket() {
 					break;
 				case 2:
 					plat_in = atoi(plat_in_str);
-					if(plat_in != plat) {
+					if(plat_in != plat && plat_in) {
 						DEBUG("ignoring packet: platform mismatch\n");
 						clearLine(serialPort);
 						clearPacket();
@@ -332,7 +343,7 @@ void readPacket() {
 					break;
 				case 3:
 					type_in = atoi(type_in_str);
-					if(type_in != type) {
+					if(type_in != type && type_in != ALL_TYPES) {
 						DEBUG("ignoring packet: type mismatch\n");
 						clearLine(serialPort);
 						clearPacket();
@@ -480,24 +491,34 @@ void processPacket(int comm, double val1, double val2, double val3) {
 				//KEY
 				case 0:
 					key = (int)val2;
-					DEBUG("new key: %d", key);
+					DEBUG("new key: %d\n", key);
 					break;
 				//PLATFORM ID
 				case 1:
 					plat = (int)val2;
-					DEBUG("new platform id: %f", plat);
+					DEBUG("new platform id: %d\n", plat);
 
 					break;
 				//BASE (Distance b/t encoder wheels)
 				case 2:
 					base = val2;
-					DEBUG("new base: %f", base);
+					DEBUG("new base: %f\n", base);
 
 					break;
 				//RADIUS (Radius of encoder wheels)
 				case 3:
 					radius = val2;
-					DEBUG("new radius: %f", radius);
+					DEBUG("new radius: %f\n", radius);
+					break;
+				//TICKS_PER_CYCLE (P/R of encoders * 4)
+				case 4:
+					if((int)val2 % 128 == 0) {
+						TICKS_PER_CYCLE = val2;
+						DEBUG("new P/R: %f\n", TICKS_PER_CYCLE);
+					}
+					else {
+						DEBUG("invalid P/R resolution: %f\n", val2);
+					}
 					break;
 			}
 			break;
