@@ -1,6 +1,5 @@
 <template>
   <div id="render">
-    <p>{{ rotation }}</p>
   </div>
 </template>
 
@@ -30,7 +29,7 @@ export default {
 
     const geometry = new THREE.BoxGeometry(1, 0.2, 1);
     const material = new THREE.MeshBasicMaterial({
-      color: 0x4c3c2a
+      color: 0xffffff
     });
     const cube = new THREE.Mesh(geometry, material);
     cube.rotation.x = 0;
@@ -43,7 +42,7 @@ export default {
 
     const floorGeometry = new THREE.BoxGeometry(30, 1, 30);
     const floorMaterial = new THREE.MeshBasicMaterial({
-      color: 0x6C4F3D
+      color: 0x372411
     });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     scene.add(floor);
@@ -80,7 +79,6 @@ export default {
 <style scoped>
 #render {
   width: 100%;
-  height: 100%;
 }
 </style>
 
