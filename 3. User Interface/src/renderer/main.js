@@ -24,7 +24,7 @@ port.on('open', () => {
 
 let tmpData = '';
 const regex = /\d*\|\d*\|-?\d*(\.\d*)?\|-?\d*(\.\d*)?\|-?\d*(\.\d*)?\|-?\d*(\.\d*)\n?/;
-
+let portRes = 'foo';
 
 function buildPacket(data) {
   tmpData += data;
@@ -43,7 +43,9 @@ function buildPacket(data) {
 function getPacketData(packet) {
   if (regex.test(packet)) {
     const [key, platform, x, y, theta, checksum] = packet.split('|');
-    console.log(key, platform, x, y, theta, checksum);
+    portRes = { key, platform, x, y, theta, checksum };
+    store.commit('SET_POSITION', portRes);
+    console.log(portRes.x, portRes.y, portRes.theta);
   }
 }
 
@@ -58,6 +60,7 @@ port.on('data', (data) => {
 
 
 Vue.prototype.$port = port;
+Vue.prototype.$portRes = portRes;
 
 /* eslint-disable no-new */
 new Vue({

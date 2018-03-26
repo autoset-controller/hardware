@@ -40,9 +40,9 @@ export default {
     sendData() {
       console.log('Sending data...');
       // Write data and confirm it was written
-      // Message: key|platform|target|id|left|right|delay|checksum
+      // Message: key|platform|target|id|cmd|left|right|delay|checksum
       let message = '';
-      message = Buffer.from('1234|0|0|353|100|100|5|205\n');
+      message = Buffer.from('1234|0|999|353|0|-16|-16|5|-27\n');
       // message = Buffer.from('1234|0|0|353|0|0|5|5\n');
       this.$port.write(message, () => {
         console.log('Write:\t\t Complete!');
@@ -58,7 +58,7 @@ export default {
     },
     setPos() {
       console.log('Setting position');
-      const message = '1234|0|1|353|1|1.0|4321.0|3|4325.0\n';
+      const message = '1234|0|1|353|0|0.0|0.0|0.0|0.0\n';
       this.$port.write(message, () => {
         console.log('Set position');
       });

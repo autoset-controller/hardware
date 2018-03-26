@@ -1,15 +1,15 @@
 <template>
   <div id="render">
+    <p>{{ rotation }}</p>
   </div>
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 const THREE = require('three.js');
 export default {
   data() {
     return {
-      x: 0.01,
-      y: 0.04
     };
   },
   mounted() {
@@ -58,8 +58,9 @@ export default {
 
     const animate = () => {
       requestAnimationFrame(animate);
-      cube.position.x = this.x;
-      cube.position.z = this.y;
+      cube.position.x = this.position.x * 1;
+      cube.position.z = this.position.y * 1;
+      cube.rotation.y = this.rotation;
 
       renderer.render(scene, camera);
     };
@@ -67,8 +68,11 @@ export default {
     renderCanvas.appendChild(renderer.domElement);
     animate();
   },
-  computed() {
-
+  computed: {
+    ...mapGetters({
+      position: 'position',
+      rotation: 'rotation'
+    })
   }
 };
 </script>

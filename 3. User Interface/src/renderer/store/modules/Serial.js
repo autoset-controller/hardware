@@ -1,54 +1,26 @@
-const SerialPort = require('serialport');
-
-let port;
-
 const state = {
-  connected: false
+  position: {
+    x: 0,
+    y: 0
+  },
+  rotation: 0
 };
 
 const getters = {
-  connected: state => state.connected
+  position: state => state.position,
+  rotation: state => state.rotation
 };
 
 const mutations = {
-  SET_CONNECTED_STATE(state, payload) {
-    state.connected = payload.connectionState;
-  }
-};
-
-const actions = {
-  CONNECT_TO_PORT(state, payload) {
-    port = new SerialPort(payload.comPort, {
-      baudRate: payload.baudRate
-    });
-
-    port.on('error', (err) => {
-      console.error('There was an error opening the COM port. Please check your connection.\n', err);
-      state.commit('SET_CONNECTED_STATE', {
-        connectionState: false
-      });
-    });
-
-    port.on('open', () => {
-      console.log('Port opened:\t', port.path);
-      state.commit('SET_CONNECTED_STATE', {
-        connectionState: true
-      });
-    });
-  },
-  MOVE_PLATFORM(state, payload) {
-    const message = Buffer.from('1234|0|0|353|-512|512|0\n');
-    console.log('Moving platform. Payload is ', payload);
-    port.write(message, () => {
-      console.log('Write:\t\t Complete!');
-      console.log('Last write:\t', message.toString());
-    });
+  SET_POSITION(state, res) {
+    state.position.x = res.x;
+    state.position.y = res.y;
+    state.rotation = res.theta;
   }
 };
 
 export default {
   state,
   getters,
-  mutations,
-  actions
+  mutations
 };
