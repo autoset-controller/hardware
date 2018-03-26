@@ -56,3 +56,10 @@ export default {
   },
 };
 </script>
+
+<style scoped>
+table {
+  font-size: 14px;
+}
+</style>
+

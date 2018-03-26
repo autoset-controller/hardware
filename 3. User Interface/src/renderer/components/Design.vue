@@ -53,11 +53,10 @@ body{
     font-size: 16px;
 }
 h1, h2, h3, h4 {
-    font-weight: bold;
     letter-spacing: 0rem;
 }
 h3 {
-    font-size: 2rem;
+    font-size: 18px;
 }
 
 button {
@@ -97,10 +96,6 @@ nav .nav-item.active {
     flex-grow: 1;
 }
 
-section {
-    border: 1px solid white;
-}
-
 .top-section{
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -121,13 +116,6 @@ tr:hover {
     background: black;
 }
 tr.active { background: black; }
-
-.preview{
-    background: black;
-}
-.configuration{
-    background: #1C1C1C;
-}
 
 input {
     color: white;

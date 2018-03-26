@@ -1,7 +1,9 @@
 <template>
   <section class="preview">
     <h3>Preview</h3>
+    <p>Back</p>
     <stage-renderer></stage-renderer>
+    <p>Front</p>
   </section>
 </template>
 
@@ -14,13 +16,13 @@ export default {
 };
 </script>
 
-<style>
+<style scoped>
 .preview {
     height: 100%;
 }
-#canvas {
-    width: 100%;
-    height: 100%;
+p {
+  font-size: 12px;
+  text-align: center;
 }
 </style>
 

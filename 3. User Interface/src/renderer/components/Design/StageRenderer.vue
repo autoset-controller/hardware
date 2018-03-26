@@ -4,12 +4,11 @@
 </template>
 
 <script>
+import { mapGetters } from 'vuex';
 const THREE = require('three.js');
 export default {
   data() {
     return {
-      x: 0.01,
-      y: 0.04
     };
   },
   mounted() {
@@ -30,7 +29,7 @@ export default {
 
     const geometry = new THREE.BoxGeometry(1, 0.2, 1);
     const material = new THREE.MeshBasicMaterial({
-      color: 0x4c3c2a
+      color: 0xffffff
     });
     const cube = new THREE.Mesh(geometry, material);
     cube.rotation.x = 0;
@@ -43,7 +42,7 @@ export default {
 
     const floorGeometry = new THREE.BoxGeometry(30, 1, 30);
     const floorMaterial = new THREE.MeshBasicMaterial({
-      color: 0x6C4F3D
+      color: 0x372411
     });
     const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     scene.add(floor);
@@ -58,8 +57,9 @@ export default {
 
     const animate = () => {
       requestAnimationFrame(animate);
-      cube.position.x = this.x;
-      cube.position.z = this.y;
+      cube.position.x = this.position.x * 1;
+      cube.position.z = this.position.y * 1;
+      cube.rotation.y = this.rotation;
 
       renderer.render(scene, camera);
     };
@@ -67,8 +67,11 @@ export default {
     renderCanvas.appendChild(renderer.domElement);
     animate();
   },
-  computed() {
-
+  computed: {
+    ...mapGetters({
+      position: 'position',
+      rotation: 'rotation'
+    })
   }
 };
 </script>
@@ -76,7 +79,6 @@ export default {
 <style scoped>
 #render {
   width: 100%;
-  height: 100%;
 }
 </style>
 
