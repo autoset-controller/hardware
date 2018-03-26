@@ -9,15 +9,15 @@
 #define DEBUG(args ...) if(debug) { printf(args); }
 
 //pin values
-#define phaseAPinR 0
-#define phaseBPinR 1
-#define phaseAPinL 2
-#define phaseBPinL 3
+#define phaseAPinL 0
+#define phaseBPinL 1
+#define phaseAPinR 2
+#define phaseBPinR 3
 
 //system info
 #define XBEE_BAUD 57600
 #define UPDATE_SIZE_MAX 128
-#define UPDATE_SIZE_MIN 16
+#define UPDATE_SIZE_MIN 64
 #define ALL_TYPES 999
 
 char mac_address[256]; //MAC address (eth0) of brain
@@ -261,10 +261,10 @@ void phaseA_L() {
 	*/
 
 	if(A_L+B_L == 1) {
-		dL += 1; //Move position clockwise
+		dL -= 1; //Move position clockwise
 	}
 	else {
-		dL -= 1; //Move position counterclockwise
+		dL += 1; //Move position counterclockwise
 	}
 	update++;
 	//DEBUG("dL = %f\n", dL);
@@ -283,10 +283,10 @@ void phaseB_L() {
 	*/
 
 	if(A_L+B_L != 1) {
-		dL += 1; //Move position clockwise
+		dL -= 1; //Move position clockwise
 	}
 	else {
-		dL -= 1; //Move position counterclockwise
+		dL += 1; //Move position counterclockwise
 	}
 	update++;
 	//DEBUG("dL = %f\n", dL);

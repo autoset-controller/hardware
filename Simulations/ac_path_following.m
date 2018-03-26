@@ -69,7 +69,7 @@ function [] = ac_path_following(waypoints, initial, cycles)
             end
             wp_target = waypoints(wp_current, :);
         end
-        
+         
         %Find intersect and distances to intersect
         [intersect, radii] = get_intersect(pos, wp_target);
         
@@ -97,14 +97,38 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
     
     new_speed = speed;
     
-    if(~isnan(wp_r))
-        
+    % determine whether waypoint is facing clockwise or counter-clockwise
+    wp_intersect_theta = mod(atan2(intersect(2) - wp_target(2), intersect(1) - wp_target(1)), 2*pi); % angle towards intersect
+    wp_theta = mod(wp_target(3), 2*pi);
+    wp_dir = 1; %-1 = ccw, 1 = cw
+    
+    if(mod(wp_theta - wp_intersect_theta, 2*pi) >= pi)
+        wp_dir = -1;
+    end
+    
+    % determine whether platform is moving clockwise or counter-clockwise
+    pos_intersect_theta = mod(atan2(intersect(2) - pos(2), intersect(1) - pos(1)), 2*pi); % angle towards interesect
+    pos_theta = mod(pos(3), 2*pi);
+    pos_dir = 1; %-1 = ccw, 1 = cw
+    
+    if(mod(pos_theta - pos_intersect_theta, 2*pi) >= pi)
+        pos_dir = -1;
+    end
+    [wp_theta - wp_intersect_theta, pos_theta - pos_intersect_theta];
+    [wp_dir, pos_dir];
+    [wp_r, pos_r]
+    if(wp_r < 30) 
         % get ratio for on-circle movement
-        default_speed = [2 * (wp_r - (p_base_m/2)) * pi, 2 * (wp_r + (p_base_m/2)) * pi];
-        default_speed = default_speed / norm(default_speed)
+        if(wp_dir == 1)
+            default_speed = [2 * (wp_r + (p_base_m/2)) * pi, 2 * (wp_r - (p_base_m/2)) * pi];        
+        else
+            default_speed = [2 * (wp_r - (p_base_m/2)) * pi, 2 * (wp_r + (p_base_m/2)) * pi];
+        end
+        default_speed = default_speed / norm(default_speed);
         
         % determine change based on ratio of radii
         r_ratio = pos_r/wp_r
+        r_diff = abs(pos_r - wp_r);
         
         % assign speeds based on relative radii
         % if platform is on the circle
@@ -112,17 +136,57 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
             new_speed = default_speed;
         % if platform is inside the circle
         elseif(r_ratio < 1)
-            new_speed = [default_speed(1), default_speed(2) * abs(r_ratio)^2];
+            "inside";
+            if(wp_dir == 1) % if waypoint is clockwise
+                if(pos_dir == 1) % if moving clockwise
+                    new_speed = [default_speed(1) - abs(default_speed(1)) * r_ratio, default_speed(2)];
+                else % if moving counter-clockwise
+                    new_speed = [default_speed(1), default_speed(2) - abs(default_speed(2)) * r_ratio];
+                end
+            else % if waypoint is counter-clockwise
+                if(pos_dir == -1) % if moving counter-clockwise
+                    new_speed = [default_speed(1), default_speed(2) - abs(default_speed(2)) * r_ratio];
+                else % if moving clockwise
+                    new_speed = [default_speed(1) - abs(default_speed(1)) * r_ratio, default_speed(2)];
+                end
+            end
         % if platform is outside the circle
         else
-            new_speed = [default_speed(1) / abs(r_ratio)^2, default_speed(2)];
+            "outside";
+            if(wp_dir == 1) % if waypoint is clockwise
+                if(pos_dir == 1) % if moving clockwise
+                    new_speed = [default_speed(1), default_speed(2) - abs(default_speed(2)) * r_ratio];
+                else % if moving counter-clockwise
+                    new_speed = [default_speed(1) - abs(default_speed(1)) * r_ratio, default_speed(2)];
+                end
+            else % if waypoint is counter-clockwise
+                if(pos_dir == -1) % if moving counter-clockwise
+                    new_speed = [default_speed(1) - abs(default_speed(1)) * r_ratio, default_speed(2)];
+                else % if moving clockwise
+                    new_speed = [default_speed(1), default_speed(2) - abs(default_speed(2)) * r_ratio];
+                end
+            end
         end
         new_speed = new_speed / norm(new_speed);
     else
         % platform is oriented parallel to waypoint
-        % do not modify
         % TODO: Figure out how to do this
         "parallel"
+        side = check_passed(pos, [wp_target(1), wp_target(2), wp_target(3) + pi/2]);
+        
+        if(side == 0) % platform is to the right of the waypoint
+            if(pos_dir == wp_dir) % if platform is moving toward the waypoint
+                new_speed = [0,1]; % turn to the left
+            else % if platform is moving away from the waypoint
+                new_speed = [1,0]; % turn to the right
+            end
+        else % platform is to the left of the waypoint
+            if(pos_dir == wp_dir) % if platform is moving toward the waypoint
+                new_speed = [1,0]; % turn to the right
+            else % if platform is moving away from the waypoint
+                new_speed = [0,1]; % turn to the left
+            end
+        end
     end
     
     ratio = new_speed
