@@ -120,9 +120,17 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
     if(wp_r < 30) 
         % get ratio for on-circle movement
         if(wp_dir == 1)
-            default_speed = [2 * (wp_r + (p_base_m/2)) * pi, 2 * (wp_r - (p_base_m/2)) * pi];        
+            if(pos_dir == 1)
+                default_speed = [2 * (wp_r + (p_base_m/2)) * pi, 2 * (wp_r - (p_base_m/2)) * pi];
+            else
+                default_speed = [2 * (wp_r + (p_base_m/2)) * pi, 2 * (wp_r - (p_base_m/2)) * pi];
+            end
         else
-            default_speed = [2 * (wp_r - (p_base_m/2)) * pi, 2 * (wp_r + (p_base_m/2)) * pi];
+            if(pos_dir == -1)
+                default_speed = [2 * (wp_r - (p_base_m/2)) * pi, 2 * (wp_r + (p_base_m/2)) * pi];
+            else               
+                default_speed = [2 * (wp_r - (p_base_m/2)) * pi, 2 * (wp_r + (p_base_m/2)) * pi];
+            end
         end
         default_speed = default_speed / norm(default_speed);
         
@@ -170,24 +178,27 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
         new_speed = new_speed / norm(new_speed);
     else
         % platform is oriented parallel to waypoint
-        % TODO: Figure out how to do this
-        "parallel"
+        "parallel";
         side = check_passed(pos, [wp_target(1), wp_target(2), wp_target(3) + pi/2]);
         
-        if(side == 0) % platform is to the right of the waypoint
+        if(side == -1) % platform is to the right of the waypoint
             if(pos_dir == wp_dir) % if platform is moving toward the waypoint
                 new_speed = [0,1]; % turn to the left
             else % if platform is moving away from the waypoint
                 new_speed = [1,0]; % turn to the right
             end
-        else % platform is to the left of the waypoint
+        elseif(side == 1) % platform is to the left of the waypoint
             if(pos_dir == wp_dir) % if platform is moving toward the waypoint
                 new_speed = [1,0]; % turn to the right
             else % if platform is moving away from the waypoint
                 new_speed = [0,1]; % turn to the left
             end
+        else % platform is in line with the waypoint
+            new_speed = [1,1];
         end
     end
+    
+    new_speed = new_speed / norm(new_speed);
     
     ratio = new_speed
 end
@@ -219,10 +230,18 @@ function passed = check_passed(pos, wp_target)
     if(~isinf(wp_m))
         if(dir * pos(2) > dir * norm_y)
             passed = 1;
+        elseif(round(dir * pos(2), 2) == dir * norm_y)
+            passed = 0;
+        else
+            passed = -1;
         end
     else
         if(dir * pos(1) < dir * wp_b)
             passed = 1;
+        elseif(round(dir * pos(1), 2) == dir * wp_b)
+            passed = 0;
+        else
+            passed = -1;
         end
     end
 end
@@ -253,6 +272,7 @@ function [intersect, radii] = get_intersect(pos, wp_target)
         % special case: normals are parallel
         center_x = NaN;
         center_y = NaN;
+        intersect = [center_x, center_y];
     else
         % find intersect
         % if one normal is vertical
