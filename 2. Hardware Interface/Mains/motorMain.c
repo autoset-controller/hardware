@@ -184,7 +184,7 @@ void getSerialData() {
 						accelDelayR = 0;
 						writeMotors();
 						DEBUG("emergency stop processed\n");
-						
+
 						clearLine(serialXBee);
 						clearPacket();
 					}
@@ -210,7 +210,7 @@ void getSerialData() {
 						accelDelayR = (int)(1000.0 / (double)speedR);
 						update = 1;
 						DEBUG("pause processed\n");
-						
+
 						clearLine(serialXBee);
 						clearPacket();
 					}
@@ -271,7 +271,7 @@ void getSerialData() {
 				val2_in = atof(val2_in_str);
 				val3_in = atof(val3_in_str);
 				checksum_in = atof(checksum_in_str);
-				isBad = processPacket(comm_in, val1_in, val2_in, val3_in, checkSum_in);
+				isBad = processPacket(comm_in, val1_in, val2_in, val3_in, checksum_in);
 			}
 			if(!ignore) {
 				char badString[8] = "bad:";
@@ -355,7 +355,7 @@ void getSerialData() {
 	}
 }
 
-int processPacket(int comm, int val1, int val2, int val3, int checksum) {
+int processPacket(int comm, double val1, double val2, double val3, double checksum) {
 	int isBad = 0;
 
 	//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
@@ -367,10 +367,12 @@ int processPacket(int comm, int val1, int val2, int val3, int checksum) {
 
 	switch(comm) {
 		//SET MOTOR VALUES
+		int TL, TR, attribute;
+		double AT, value, valueCheck;
 		case 0:
-			int TL = (int)val1;
-			int TR = (int)val2;
-			double AT = val3;
+			TL = (int)val1;
+			TR = (int)val2;
+			AT = val3;
 			//target_L should be a number smaller than the MOTOR_MAX. Otherwise, packet is bad.
 			if(val1 < -MOTOR_MAX || val1 > MOTOR_MAX) {
 				isBad = 1;
@@ -426,9 +428,9 @@ int processPacket(int comm, int val1, int val2, int val3, int checksum) {
 			break;
 
 		case 1:
-			int attribute = (int)val1;
-			double value = val2;
-			double valueCheck = val3;
+			attribute = (int)val1;
+			value = val2;
+			valueCheck = val3;
 			switch(attribute) {
 				//set key
 				case 0:

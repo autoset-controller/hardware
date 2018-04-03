@@ -17,7 +17,7 @@
 //system info
 #define XBEE_BAUD 57600
 #define UPDATE_SIZE_MAX 128
-#define UPDATE_SIZE_MIN 32
+#define UPDATE_SIZE_MIN 64
 #define ALL_TYPES 999
 
 //CONSTANTS
@@ -30,7 +30,7 @@ double TICKS_PER_CYCLE = 4096; //P/R on encoder * 4
 
 //forward decl
 void getSerialData();
-void processPacket(int, double, double, double, double);
+int processPacket(int, double, double, double, double);
 void sendPositionPacket(double, double, double);
 void clearLine(int);
 void clearPacket();
@@ -146,7 +146,7 @@ int main(int argc, char* argv)  {
 			update = 0;
 
 			//interrupts can now safely modify these values
-			DEBUG("%d: %f, %f\n", updates_in, dR_in, dL_in);
+			DEBUG("%d: %f, %f\n", updates_in, dL_in, dR_in);
 
 			//update update size to process updates efficiently
 			if(updates_in <= update_size) { // if updates were processed without delay
@@ -214,7 +214,7 @@ void getSerialData() {
 					break;
 				case 2:
 					plat_in = atoi(plat_in_str);
-					if(plat_in != plat && plat_in) {
+					if(plat_in != platform && plat_in) {
 						DEBUG("ignoring packet: platform mismatch\n");
 						clearLine(serialPort);
 						clearPacket();
@@ -361,6 +361,8 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 
 	//Interpret Command
 	switch(comm) {
+		int attribute;
+		double value, valueCheck;
 		//Set Position
 		case 0:
 			x = val1;
@@ -373,9 +375,9 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 
 		//Set Attribute
 		case 1:
-			int attribute = (int)val1;
-			double value = val2;
-			double valueCheck = val3;
+			attribute = (int)val1;
+			value = val2;
+			valueCheck = val3;
 			//Interpret Attribute Type
 			switch((int)val1) {
 				//KEY
@@ -433,6 +435,7 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 			}
 			break;
 	}
+	return isBad;
 }
 
 void sendPositionPacket(double x, double y, double theta) {
@@ -445,7 +448,7 @@ void sendPositionPacket(double x, double y, double theta) {
 	sprintf(checksum_str, "%f", checksum);
 
 	char packet[128];
-	sprintf(packet, "%d|%d|%s|%s|%s|%s\n", key, plat, x_str, y_str, theta_str, checksum_str);
+	sprintf(packet, "%d|%d|%s|%s|%s|%s\n", key, platform, x_str, y_str, theta_str, checksum_str);
 
 	//DEBUG("sending packet: %s", packet);
 	serialPuts(serialPort, packet);
