@@ -8,7 +8,7 @@ module.exports = {
     browser: true,
     node: true
   },
-  extends: 'airbnb-base',
+  extends: 'airbnb',
   globals: {
     __static: true
   },
@@ -26,9 +26,10 @@ module.exports = {
     'comma-dangle': 0,
     "no-mixed-operators": 0,
     "curly": 0,
-    "no-console": 0,
     "func-names": 0,
     "object-shorthand": 0,
+    "no-plusplus": 0,
+    "no-loop-func": 0,
     // allow debugger during development
     'no-debugger': process.env.NODE_ENV === 'production' ? 2 : 0
   }

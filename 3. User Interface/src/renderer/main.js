@@ -24,7 +24,15 @@ port.on('open', () => {
 
 let tmpData = '';
 const regex = /\d*\|\d*\|-?\d*(\.\d*)?\|-?\d*(\.\d*)?\|-?\d*(\.\d*)?\|-?\d*(\.\d*)\n?/;
+const goodRegex = /good:\d*\n?/;
 let portRes = 'foo';
+
+function writeToController(data) {
+  const message = `1234|0|0|353|0|${data.x}|${data.y}|1|${data.x + data.y + 1}\n`;
+  port.write(message, () => {
+    console.log('Sent ', data);
+  });
+}
 
 function buildPacket(data) {
   tmpData += data;
@@ -43,9 +51,16 @@ function buildPacket(data) {
 function getPacketData(packet) {
   if (regex.test(packet)) {
     const [key, platform, x, y, theta, checksum] = packet.split('|');
-    portRes = { key, platform, x, y, theta, checksum };
+    portRes = {
+      key, platform, x, y, theta, checksum
+    };
     store.commit('SET_POSITION', portRes);
-    console.log(portRes.x, portRes.y, portRes.theta);
+    // console.log(`Positions:
+    // x: ${portRes.x}
+    // y: ${portRes.y},
+    // θ: ${portRes.theta}`);
+  } else if (goodRegex.test(packet)) {
+    console.log('It\'s all good!');
   }
 }
 
@@ -57,6 +72,37 @@ port.on('data', (data) => {
     getPacketData(packet);
   }
 });
+const MAX_SPEED = 60;
+const motorPackets = { x: 0, y: 0 };
+function gameLoop() {
+  const gamepads = navigator.getGamepads();
+  const gamepad = gamepads[0];
+  if (gamepad) {
+    const leftSpeed = gamepad.axes[1];
+    const rightSpeed = gamepad.axes[3];
+    if ((leftSpeed > 0.1 || leftSpeed < -0.1) ||
+    (rightSpeed > 0.1 || rightSpeed < -0.1)) {
+      const xValue = -Math.round(leftSpeed * MAX_SPEED);
+      const yValue = -Math.round(rightSpeed * MAX_SPEED);
+      if (Math.abs(xValue - motorPackets.x) >= 1 || Math.abs(yValue - motorPackets.y) >= 1) {
+        motorPackets.x = xValue;
+        motorPackets.y = yValue;
+        writeToController({ x: motorPackets.x, y: motorPackets.y });
+      }
+    } else if (gamepad.buttons[1].pressed) {
+      port.write('1234|E_STOP|\n', () => {
+        console.log('Emergency Stop!');
+      });
+    } else if (motorPackets.x !== 0 || motorPackets.y !== 0) {
+      motorPackets.x = 0;
+      motorPackets.y = 0;
+      writeToController({ x: motorPackets.x, y: motorPackets.y });
+    }
+  }
+
+  window.requestAnimationFrame(gameLoop);
+}
+gameLoop();
 
 
 Vue.prototype.$port = port;

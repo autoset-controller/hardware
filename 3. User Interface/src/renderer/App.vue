@@ -43,7 +43,30 @@
   #title-bar {
     -webkit-app-region: drag;
     text-align: center; 
-    background: #1C1C1C;
+    background: #000;
     font-size: 14px;
+  }
+  body{
+    height: 100vh;
+    margin: 0;
+    background: #1C1C1C;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Source Sans Pro', sans-serif;
+    font-size: 16px;
+  }
+  nav {
+      text-align: center;
+      /* border-bottom: 1px solid white; */
+  }
+  nav .nav-item{
+      display: inline;
+      font-size: 2rem;
+      margin: 20px;
+      cursor: pointer;
+  }
+  nav .nav-item.active {
+      text-shadow: 0px 2px 5px white;
   }
 </style>

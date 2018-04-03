@@ -36,13 +36,13 @@
 // const store = require('vuex');
 const cues = [{
   name: 'Starting Motion',
-  targets: ['A', 'B', 'C'],
+  targets: 'A',
   duration: 9.45,
   speed: 2
 },
 {
   name: 'All Around the World',
-  targets: ['B'],
+  targets: 'B',
   duration: 12.45,
   speed: 3,
 },

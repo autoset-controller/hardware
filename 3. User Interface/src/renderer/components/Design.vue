@@ -42,31 +42,11 @@ time, mark, audio, video {
 	border: 0;
 	vertical-align: baseline;
 }
-body{
-    height: 100vh;
-    margin: 0;
-    background: #1C1C1C;
-    color: white;
-    display: flex;
-    flex-direction: column;
-    font-family: 'Source Sans Pro', sans-serif;
-    font-size: 16px;
-}
 h1, h2, h3, h4 {
     letter-spacing: 0rem;
 }
 h3 {
     font-size: 18px;
-}
-
-button {
-    outline: none;
-    border: 0;
-    padding: 5px;
-    font-size: 1.5rem;
-    margin: 5px;
-    border-radius: 2px;
-    cursor: pointer;
 }
 
 .top-bar {
@@ -75,19 +55,6 @@ button {
 .top-bar p {
     text-align: center;
     margin: 0;
-}
-nav {
-    text-align: center;
-    /* border-bottom: 1px solid white; */
-}
-nav .nav-item{
-    display: inline;
-    font-size: 2rem;
-    margin: 20px;
-    cursor: pointer;
-}
-nav .nav-item.active {
-    text-shadow: 0px 2px 5px white;
 }
 
 #design{
@@ -120,10 +87,6 @@ tr.active { background: black; }
 input {
     color: white;
     margin-right: 10px;
-}
-button.submit {
-    background: #2ecc71;
-    color: white;
 }
 
 .form-row {

@@ -6,8 +6,8 @@ Vue.use(Router);
 export default new Router({
   routes: [
     {
-      path: '/',
-      name: 'landing-page',
+      path: '/design',
+      name: 'design',
       component: require('@/components/Design').default,
     },
     {
@@ -17,7 +17,7 @@ export default new Router({
     },
     {
       path: '*',
-      redirect: '/',
+      redirect: '/design',
     },
   ],
 });
