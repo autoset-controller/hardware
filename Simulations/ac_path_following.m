@@ -116,7 +116,7 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
     end
     [wp_theta - wp_intersect_theta, pos_theta - pos_intersect_theta];
     [wp_dir, pos_dir];
-    [wp_r, pos_r]
+    [wp_r, pos_r];
     if(wp_r < 30) 
         % get ratio for on-circle movement
         if(wp_dir == 1)
@@ -135,7 +135,7 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
         default_speed = default_speed / norm(default_speed);
         
         % determine change based on ratio of radii
-        r_ratio = pos_r/wp_r
+        r_ratio = pos_r/wp_r;
         r_diff = abs(pos_r - wp_r);
         
         % assign speeds based on relative radii
@@ -200,7 +200,7 @@ function ratio = get_ratio(speed, p_base_m, p_base_e, pos, wp_target, intersect,
     
     new_speed = new_speed / norm(new_speed);
     
-    ratio = new_speed
+    ratio = new_speed;
 end
 
 function passed = check_passed(pos, wp_target)
@@ -288,7 +288,16 @@ function [intersect, radii] = get_intersect(pos, wp_target)
             m = [pos_m, -1; wp_m, -1];
             m = inv(m);
             intersect = m * [pos_b;wp_b];
-            intersect = -intersect';
+            intersect = -intersect'
+            
+            intersect_x = round((wp_b - pos_b) / (pos_m - wp_m), 6);
+            intersect_y = round(wp_m * intersect_x + wp_b, 6);
+            
+            if(intersect ~= [intersect_x, intersect_y])
+                x = 5
+            end
+            
+            intersect = [intersect_x, intersect_y]
             
             plot([-5, 5], [pos_m*-5 + pos_b, pos_m*5 + pos_b], 'r-')
             plot([-5, 5], [wp_m*-5 + wp_b, wp_m*5 + wp_b], 'b-')

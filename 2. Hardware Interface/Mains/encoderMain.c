@@ -17,26 +17,28 @@
 //system info
 #define XBEE_BAUD 57600
 #define UPDATE_SIZE_MAX 128
-#define UPDATE_SIZE_MIN 64
+#define UPDATE_SIZE_MIN 32
 #define ALL_TYPES 999
 
-char mac_address[256]; //MAC address (eth0) of brain
-
+//CONSTANTS
 int update_size = 64; //minimum # updates to trigger a packet send
 int update_match = 0;
-double radius = .25 * .3048; //radius of encoder wheels (m)
-double base = 1 * .3048; //distance from encoder wheels to center (m)
+double radius = .2625 * .3048; //radius of encoder wheels (m)
+double encoderDist = 1.484375 * .3048; //distance between encoder wheels (m)
+double motorDist = 2.5416666 * .3048; //distance between motor wheels
 double TICKS_PER_CYCLE = 4096; //P/R on encoder * 4
 
 //forward decl
+void getSerialData();
+void processPacket(int, double, double, double, double);
+void sendPositionPacket(double, double, double);
+void clearLine(int);
+void clearPacket();
+
 void phaseA_R();
 void phaseB_R();
 void phaseA_L();
 void phaseB_L();
-void clearLine(int);
-void clearPacket();
-void readPacket();
-void processPacket(int, double, double, double);
 
 //interrupt info
 double dR;
@@ -58,11 +60,12 @@ char checksum_str[128];
 int serialPort;
 int update;
 
-//COM info
+//Computer Info
 char delim = '|';
 int key = 1234;
-int plat = 0;
+int platform = 0;
 int type = 1; //0 for motor brain, 1 for encoder brain
+char mac_address[256]; //MAC address (eth0) of brain
 
 //serial packet info
 int valuesLoaded = 0;
@@ -127,7 +130,7 @@ int main(int argc, char* argv)  {
 		//Check for serial data
 		if(serialDataAvail(serialPort) > 0) {
 			//interpret serial data and act on it
-			readPacket();
+			getSerialData();
 		}
 
 		//calculate change in x,y,theta
@@ -171,7 +174,7 @@ int main(int argc, char* argv)  {
 			dR_in = dR_in * 2 * M_PI / TICKS_PER_CYCLE;
 			dL_in = dL_in * 2 * M_PI / TICKS_PER_CYCLE;
 
-			dtheta = (radius / (2 * base)) * (dR_in - dL_in);
+			dtheta = (radius / (2 * encoderDist)) * (dR_in - dL_in);
 			theta = theta + dtheta;
 			theta = fmod(theta, 2 * M_PI);
 
@@ -184,24 +187,291 @@ int main(int argc, char* argv)  {
 			x = x + radius / 2 * cos(theta) * (dR_in + dL_in);
 			y = y + radius / 2 * sin(theta) * (dR_in + dL_in);
 
-			checksum = theta + x;
-			checksum = checksum + y;
-
-			//format position data for serial output
-			sprintf(x_str, "%f", x);
-			sprintf(y_str, "%f", y);
-			sprintf(theta_str, "%f", theta);
-			sprintf(checksum_str, "%f", checksum);
-
-			char packet[128];
-			sprintf(packet, "1234|0|%s|%s|%s|%s\n", x_str, y_str, theta_str, checksum_str);
-
-			//DEBUG("sending packet: %s", packet);
-			serialPuts(serialPort, packet);
+			sendPositionPacket(x, y, theta);
 		}
 	}
 
 	return 0;
+}
+
+///PACKET FUNCTIONS:
+
+void getSerialData() {
+	while(serialDataAvail(serialPort) > 0) {
+		char c = (char)serialGetchar(serialPort);
+		DEBUG("%c", c);
+		if(c == '|') {
+			valuesLoaded += 1;
+			//preemptively ignore packets
+			switch(valuesLoaded) {
+				case 1:
+					key_in = atoi(key_in_str);
+					if(key_in != key) {
+						DEBUG("ignoring packet: key mismatch\n");
+						clearLine(serialPort);
+						clearPacket();
+					}
+					break;
+				case 2:
+					plat_in = atoi(plat_in_str);
+					if(plat_in != plat && plat_in) {
+						DEBUG("ignoring packet: platform mismatch\n");
+						clearLine(serialPort);
+						clearPacket();
+					}
+					break;
+				case 3:
+					type_in = atoi(type_in_str);
+					if(type_in != type && type_in != ALL_TYPES) {
+						DEBUG("ignoring packet: type mismatch\n");
+						clearLine(serialPort);
+						clearPacket();
+					}
+					break;
+			}
+		}
+		else if(c == '\n') {
+			//Display packet info
+			DEBUG("key_in: %s\n", key_in_str);
+			DEBUG("plat_in: %s\n", plat_in_str);
+			DEBUG("type_in: %s\n", type_in_str);
+			DEBUG("id_in: %s\n", id_in_str);
+			DEBUG("comm_in: %s\n", comm_in_str);
+			DEBUG("val1_in: %s\n", val1_in_str);
+			DEBUG("val2_in: %s\n", val2_in_str);
+			DEBUG("val3_in: %s\n", val3_in_str);
+			DEBUG("checksum_in: %s\n", checksum_in_str);
+
+			//process all inputs
+			int ignore = 0;
+			int isBad = 0;
+			//If fewer than 4 values have been loaded, we cannot tell if this packet was sent from the controller.
+			if(valuesLoaded < 4) {
+				//ignore packet
+				DEBUG("too few values loaded, ignoring: %d\n", valuesLoaded);
+				ignore = 1;
+			}
+			//Otherwise, we need to check and see if the values are valid.
+			else {
+				//target_L should be an integer between 0 and 1. Otherwise, packet is bad.
+				comm_in = atoi(comm_in_str);
+				if(comm_in < 0 || comm_in > 1) {
+					isBad = 1;
+					DEBUG("comm out of bounds: %d\n", comm_in);
+				}
+				//val1-val3 should be doubles. Otherwise, packet is bad.
+				val1_in = atof(val1_in_str);
+				val2_in = atof(val2_in_str);
+				val3_in = atof(val3_in_str);
+				DEBUG("values: %f, %f, %f\n", val1_in, val2_in, val3_in);
+				//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
+				checksum_in = atof(checksum_in_str);
+				
+				isBad = processPacket(comm_in, val1_in, val2_in, val3_in, checksum_in);
+			}
+			if(!ignore) {
+				char badString[8] = "bad:";
+				char goodString[8] = "good:";
+				char* pString;
+				if(isBad) {
+					strcat(badString, id_in_str);
+					pString = badString;
+				}
+				else {
+					strcat(goodString, id_in_str);
+					pString = goodString;
+					update = 1;
+				}
+				//acknowledge packet
+				DEBUG("sending packet %s...\n", pString);
+				serialPuts(serialPort, pString);
+			}
+			else {
+				DEBUG("ignoring packet\n");
+			}
+			clearPacket();
+		}
+		else {
+			char tmp[2] = "\0\0";
+			tmp[0] = c;
+
+			switch(valuesLoaded) {
+				//process key entry
+				case 0:
+					strcat(key_in_str, tmp); //add next char to key
+					break;
+
+				//process platform entry
+				case 1:
+					strcat(plat_in_str, tmp); //add next char to platform
+					break;
+
+				//process target entry
+				case 2:
+					strcat(type_in_str, tmp); //add next char to type
+					break;
+
+				case 3:
+					strcat(id_in_str, tmp); //add next char to id
+					break;
+
+				//process comm entry
+				case 4:
+					strcat(comm_in_str, tmp); //add next char to comm
+					break;
+
+				//process val1 entry
+				case 5:
+					strcat(val1_in_str, tmp); //add next char to val1
+					break;
+
+				//process val1 entry
+				case 6:
+					strcat(val2_in_str, tmp); //add next char to val2
+					break;
+
+				//process val1 entry
+				case 7:
+					strcat(val3_in_str, tmp); //add next char to val3
+					break;
+
+				//process checkSum entry
+				case 8:
+					strcat(checksum_in_str, tmp); //add next char to checksum
+					break;
+
+			//all values processed
+			default:
+
+				break;
+			}
+		}
+	}
+}
+
+int processPacket(int comm, double val1, double val2, double val3, double checksum) {
+	int isBad = 0;
+
+	//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
+	if(checksum < val1 + val2 + val3 - 0.000001 || checksum > val1 + val2 + val3 + 0.000001) {
+		isBad = 1;
+		DEBUG("checkSum does not match: %d != %d + %d + %d\n", checksum, val1, val2, val3);
+		return isBad;
+	}
+
+	//Interpret Command
+	switch(comm) {
+		//Set Position
+		case 0:
+			x = val1;
+			y = val2;
+			theta = val3;
+			DEBUG("new position: x = %f, y = %f, theta = %f\n", x, y, theta);
+
+			sendPositionPacket(x, y, theta);
+			break;
+
+		//Set Attribute
+		case 1:
+			int attribute = (int)val1;
+			double value = val2;
+			double valueCheck = val3;
+			//Interpret Attribute Type
+			switch((int)val1) {
+				//KEY
+				case 0:
+					if((int)value == (int)valueCheck && value > 0) {
+						key = (int)value;
+						DEBUG("new key: %d\n", key);
+					}
+					else {
+						DEBUG("key set failed: %d != %d\n", value, valueCheck);
+					}
+					break;
+				//PLATFORM ID
+				case 1:
+					if((int)value == (int)valueCheck && (int)value >= 0) {
+						platform = (int)value;
+						DEBUG("new platform id: %d\n", platform);
+					}
+					else {
+						DEBUG("platform id set failed: %d != %d\n", (int)value, (int)valueCheck);
+						isBad = 1;
+					}
+					break;
+				default:
+				//BASE (Distance b/t encoder wheels)
+				case 2:
+					if(value == valueCheck && value > 0) {
+						encoderDist = (int)value;
+						DEBUG("new base: %f\n", encoderDist);
+					}
+					else {
+						DEBUG("base set failed: %f != %f\n", value, valueCheck);
+					}
+					break;
+				//RADIUS (Radius of encoder wheels)
+				case 3:
+					if(value == valueCheck && value > 0) {
+						radius = (int)value;
+						DEBUG("new radius: %f\n", radius);
+					}
+					else {
+						DEBUG("radius set failed: %f != %f\n", value, valueCheck);
+					}
+					break;
+				//TICKS_PER_CYCLE (P/R of encoders * 4)
+				case 4:
+					if((int)value % 128 == 0 && (int)value == (int)valueCheck) {
+						TICKS_PER_CYCLE = (int)value;
+						DEBUG("new P/R: %d\n", TICKS_PER_CYCLE);
+					}
+					else {
+						DEBUG("invalid P/R resolution: %d\n", (int)value);
+					}
+					break;
+			}
+			break;
+	}
+}
+
+void sendPositionPacket(double x, double y, double theta) {
+	checksum = theta + x + y;
+
+	//format position data for serial output
+	sprintf(x_str, "%f", x);
+	sprintf(y_str, "%f", y);
+	sprintf(theta_str, "%f", theta);
+	sprintf(checksum_str, "%f", checksum);
+
+	char packet[128];
+	sprintf(packet, "%d|%d|%s|%s|%s|%s\n", key, plat, x_str, y_str, theta_str, checksum_str);
+
+	//DEBUG("sending packet: %s", packet);
+	serialPuts(serialPort, packet);
+}
+
+//Clears buffer up to next newline
+void clearLine(int serialPort) {
+	char x = ' ';
+	while(serialDataAvail > 0 && x != '\n') {
+		x = (char)serialGetchar(serialPort);
+	}
+}
+
+//Resets packet values
+void clearPacket() {
+	key_in_str[0] = '\0';
+	plat_in_str[0] = '\0';
+	type_in_str[0] = '\0';
+	id_in_str[0] = '\0';
+	comm_in_str[0] = '\0';
+	val1_in_str[0] = '\0';
+	val2_in_str[0] = '\0';
+	val3_in_str[0] = '\0';
+	checksum_in_str[0] = '\0';
+
+	valuesLoaded = 0;
 }
 
 //INTERRUPT FUNCTIONS
@@ -291,236 +561,4 @@ void phaseB_L() {
 	update++;
 	//DEBUG("dL = %f\n", dL);
 	//printf("pos = %d\n", pos);
-}
-
-///PACKET FUNCTIONS:
-//Clears buffer up to next newline
-void clearLine(int serialPort) {
-	char x = ' ';
-	while(serialDataAvail > 0 && x != '\n') {
-		x = (char)serialGetchar(serialPort);
-	}
-}
-
-//Resets packet values
-void clearPacket() {
-	key_in_str[0] = '\0';
-	plat_in_str[0] = '\0';
-	type_in_str[0] = '\0';
-	id_in_str[0] = '\0';
-	comm_in_str[0] = '\0';
-	val1_in_str[0] = '\0';
-	val2_in_str[0] = '\0';
-	val3_in_str[0] = '\0';
-	checksum_in_str[0] = '\0';
-
-	valuesLoaded = 0;
-}
-
-void readPacket() {
-	while(serialDataAvail(serialPort) > 0) {
-		char c = (char)serialGetchar(serialPort);
-		DEBUG("%c", c);
-		if(c == '|') {
-			valuesLoaded += 1;
-			//preemptively ignore packets
-			switch(valuesLoaded) {
-				case 1:
-					key_in = atoi(key_in_str);
-					if(key_in != key) {
-						DEBUG("ignoring packet: key mismatch\n");
-						clearLine(serialPort);
-						clearPacket();
-					}
-					break;
-				case 2:
-					plat_in = atoi(plat_in_str);
-					if(plat_in != plat && plat_in) {
-						DEBUG("ignoring packet: platform mismatch\n");
-						clearLine(serialPort);
-						clearPacket();
-					}
-					break;
-				case 3:
-					type_in = atoi(type_in_str);
-					if(type_in != type && type_in != ALL_TYPES) {
-						DEBUG("ignoring packet: type mismatch\n");
-						clearLine(serialPort);
-						clearPacket();
-					}
-					break;
-			}
-		}
-		else if(c == '\n') {
-			//Display packet info
-			DEBUG("key_in: %s\n", key_in_str);
-			DEBUG("plat_in: %s\n", plat_in_str);
-			DEBUG("type_in: %s\n", type_in_str);
-			DEBUG("id_in: %s\n", id_in_str);
-			DEBUG("comm_in: %s\n", comm_in_str);
-			DEBUG("val1_in: %s\n", val1_in_str);
-			DEBUG("val2_in: %s\n", val2_in_str);
-			DEBUG("val3_in: %s\n", val3_in_str);
-			DEBUG("checksum_in: %s\n", checksum_in_str);
-
-			//process all inputs
-			int ignore = 0;
-			int isBad = 0;
-			//If fewer than 4 values have been loaded, we cannot tell if this packet was sent from the controller.
-			if(valuesLoaded < 4) {
-				//ignore packet
-				DEBUG("too few values loaded, ignoring: %d\n", valuesLoaded);
-				ignore = 1;
-			}
-			//Otherwise, we need to check and see if the values are valid.
-			else {
-				//target_L should be an integer between 0 and 1. Otherwise, packet is bad.
-				comm_in = atoi(comm_in_str);
-				if(comm_in < 0 || comm_in > 1) {
-					isBad = 1;
-					DEBUG("comm out of bounds: %d\n", comm_in);
-				}
-				//val1-val3 should be doubles. Otherwise, packet is bad.
-				val1_in = atof(val1_in_str);
-				val2_in = atof(val2_in_str);
-				val3_in = atof(val3_in_str);
-				//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
-				checksum_in = atof(checksum_in_str);
-				if(checksum_in > val1_in + val2_in + val3_in + .000001 || checksum_in < val1_in + val2_in + val3_in - .000001) {
-					isBad = 1;
-					DEBUG("checksum does not match: %f != %f + %f + %f\n", checksum_in, val1_in, val2_in, val3_in);
-				}
-			}
-			if(!ignore) {
-				char badString[8] = "bad:";
-				char goodString[8] = "good:";
-				char* pString;
-				if(isBad) {
-					strcat(badString, id_in_str);
-					pString = badString;
-				}
-				else {
-					strcat(goodString, id_in_str);
-					pString = goodString;
-					//process incoming packet
-					processPacket(comm_in, val1_in, val2_in, val3_in);
-					update = 1;
-				}
-				//acknowledge packet
-				DEBUG("sending packet %s...\n", pString);
-				serialPuts(serialPort, pString);
-			}
-			else {
-				DEBUG("ignoring packet\n");
-			}
-			clearPacket();
-		}
-		else {
-			char tmp[2] = "\0\0";
-			tmp[0] = c;
-
-			switch(valuesLoaded) {
-				//process key entry
-				case 0:
-					strcat(key_in_str, tmp); //add next char to key
-					break;
-
-				//process platform entry
-				case 1:
-					strcat(plat_in_str, tmp); //add next char to platform
-					break;
-
-				//process target entry
-				case 2:
-					strcat(type_in_str, tmp); //add next char to type
-					break;
-
-				case 3:
-					strcat(id_in_str, tmp); //add next char to id
-					break;
-
-				//process comm entry
-				case 4:
-					strcat(comm_in_str, tmp); //add next char to comm
-					break;
-
-				//process val1 entry
-				case 5:
-					strcat(val1_in_str, tmp); //add next char to val1
-					break;
-
-				//process val1 entry
-				case 6:
-					strcat(val2_in_str, tmp); //add next char to val2
-					break;
-
-				//process val1 entry
-				case 7:
-					strcat(val3_in_str, tmp); //add next char to val3
-					break;
-
-				//process checkSum entry
-				case 8:
-					strcat(checksum_in_str, tmp); //add next char to checksum
-					break;
-
-			//all values processed
-			default:
-
-				break;
-			}
-		}
-	}
-}
-
-void processPacket(int comm, double val1, double val2, double val3) {
-	//Interpret Command
-	switch(comm) {
-		//Set Position
-		case 0:
-			x = val1;
-			y = val2;
-			theta = val3;
-			DEBUG("new position: x = %f, y = %f, theta = %f\n", x, y, theta);
-			break;
-
-		//Set Attribute
-		case 1:
-			//Interpret Attribute Type
-			switch((int)val1) {
-				//KEY
-				case 0:
-					key = (int)val2;
-					DEBUG("new key: %d\n", key);
-					break;
-				//PLATFORM ID
-				case 1:
-					plat = (int)val2;
-					DEBUG("new platform id: %d\n", plat);
-
-					break;
-				//BASE (Distance b/t encoder wheels)
-				case 2:
-					base = val2;
-					DEBUG("new base: %f\n", base);
-
-					break;
-				//RADIUS (Radius of encoder wheels)
-				case 3:
-					radius = val2;
-					DEBUG("new radius: %f\n", radius);
-					break;
-				//TICKS_PER_CYCLE (P/R of encoders * 4)
-				case 4:
-					if((int)val2 % 128 == 0) {
-						TICKS_PER_CYCLE = val2;
-						DEBUG("new P/R: %f\n", TICKS_PER_CYCLE);
-					}
-					else {
-						DEBUG("invalid P/R resolution: %f\n", val2);
-					}
-					break;
-			}
-			break;
-	}
 }
