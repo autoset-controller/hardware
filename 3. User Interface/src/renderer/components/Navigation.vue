@@ -1,6 +1,6 @@
 <template>
   <nav>
-    <router-link to="/design" class="active">Design</router-link>
+    <router-link to="/design">Design</router-link>
     <router-link to="/test">Test</router-link>
     <router-link to="/play">Play</router-link>
   </nav>
@@ -19,7 +19,7 @@ export default {};
     font-size: 18px;
     margin: 0 25px;
   }
-    a.active {
+    .router-link-active {
       border-bottom: solid 2px white;
     }
 </style>
