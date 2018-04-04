@@ -4,18 +4,24 @@
     <button class="send" @click="sendData">Send</button>
     <button @click="setPos">Set Position</button>
     <button class="secondary" @click="emergencyStop">Cancel</button>
-    <button @click="followPath">Circle Path</button>
+    <button @click="followPath(0, 0)">Circle Path</button>
     <button @click="draw">Draw Waypoints</button>
+    <button @click="forward">Forward</button>
+    <button @click="reverse">Reverse</button>
+    <button @click="rotate">Rotate</button>
+    <button @click="pause">Pause</button>
   </div>
 </template>
 
 <script>
+/* eslint-disable */
 import { mapGetters, mapMutations } from 'vuex';
 import { checkSide, getRatio, getIntersect } from '../../pathFollowing';
 export default {
   data() {
     return {
-      packet: '1234|0|0|353|0|24|-24|5|5'
+      packet: '1234|0|0|353|0|24|-24|5|5',
+      canRun: true
     };
   },
   methods: {
@@ -32,7 +38,8 @@ export default {
       });
     },
     emergencyStop() {
-      console.log('Emergency Stop');
+      this.canRun = false;
+      // console.log('Emergency Stop');
       const message = '1234|E_STOP|\n';
       this.$port.write(message, () => {
         console.log('Stopped!');
@@ -40,17 +47,38 @@ export default {
     },
     setPos() {
       console.log('Setting position');
-      const message = '1234|0|1|353|0|0.0|0.0|0.0|0.0\n';
+      const message = '1234|0|1|353|0|2.0|0.0|-3.14|-1.14\n';
       this.$port.write(message, () => {
         console.log('Set position');
       });
     },
-    followPath() {
+    forward() {
+      this.$port.write('1234|0|0|353|0|24|24|5|53\n', () => {
+        console.log('Set position');
+      });
+    },
+    reverse() {
+      this.$port.write('1234|0|0|353|0|-24|-24|5|-43\n', () => {
+        console.log('Set position');
+      });
+    },
+    rotate() {
+      this.$port.write('1234|0|0|353|0|24|-24|5|5\n', () => {
+        console.log('Set position');
+      });
+    },
+    pause() {
+      this.$port.write('1234|0|0|353|0|0|0|2|2\n', () => {
+        console.log('Set position');
+      });
+    },
+    followPath(wpCurrent, completeCycles) {
       console.log('Path Following activated.');
       // CONSTANTS:
-      const baseMotors = 2.5; // distance between motor wheels
-      // const platformRadius = .15; // radius of encoder wheels
+      const baseMotors = 0.77469997968; // distance between motor wheels
+      const minSpeed = 11;
       const maxSpeed = 24; // one rotation per second
+      const cycles = 1;
       const waypoints = [
         {
           x: 1 / Math.sqrt(2),
@@ -70,50 +98,39 @@ export default {
           theta: Math.PI / 4
         }
       ];
-      const cycles = 1;
-
-      const speed = {
-        left: 0,
-        right: maxSpeed
-      }; // left/right speeds in m/s
+      const speed = { left: 0, right: maxSpeed }; // left/right speeds in m/s
       const wpCount = waypoints.size;
-
-      let wpCurrent = 0;
       let waypointPos = waypoints[wpCurrent];
 
-      let completeCycles = 0;
       // MAIN LOOP
-      const platformPos = {
-        x: 1,
-        y: 1,
-        theta: 1
-      };
+      const platformPos = { x: this.position.x, y: this.position.y, theta: this.rotation };
       // Check if waypoint is passed, and update waypoint
       const ispassed = checkSide(platformPos, waypointPos);
       if (ispassed === 1) {
         wpCurrent++;
         if (wpCurrent > wpCount) {
-          wpCurrent = 1;
+          wpCurrent = 0;
           completeCycles++;
         }
         waypointPos = waypoints[wpCurrent];
       }
-      // Find intersect and distances to intersect
-      const { intersect, radii } = getIntersect(platformPos, waypointPos);
       // Determine appropriate ratio for current scenario
       const ratio = getRatio(
         speed, baseMotors,
-        platformPos, waypointPos, intersect, radii
+        platformPos, waypointPos
       );
       // Set speed of motors: In final version, send out packet
-      speed.left = ratio.left * maxSpeed;
-      speed.right = ratio.right * maxSpeed;
-      console.log(`Writing ${ratio.left} and ${ratio.right}.`);
-      this.$port.write(`1234|0|0|353|0|${speed.left}|${speed.right}|1|${speed.left + speed.right + 1}\n`, () => {
+      speed.left = Math.round(ratio[0] * (maxSpeed - minSpeed) + Math.sign(ratio[0]) * minSpeed);
+      speed.right = Math.round(ratio[1] * (maxSpeed - minSpeed) + Math.sign(ratio[1]) * minSpeed);
+      const packet = `1234|0|0|353|0|${speed.left}|${speed.right}|0|${speed.left + speed.right}\n`;
+      console.log(`Index is: ${wpCurrent}, cycles run is: ${completeCycles}, ratio is ${ratio[0]}, ${ratio[1]} and speed is ${speed.left}, ${speed.right}`);
+      this.$port.write(packet, () => {
         console.log('Wrote');
-        if (completeCycles < cycles) {
-          this.followPath();
-        }
+        setTimeout(() => {
+          if (completeCycles < cycles && this.canRun) {
+            this.followPath(wpCurrent, completeCycles);
+          }
+        }, 100);
       });
     },
     draw() {
@@ -126,7 +143,9 @@ export default {
   },
   computed: {
     ...mapGetters({
-      isDrawing: 'isDrawing'
+      isDrawing: 'isDrawing',
+      position: 'position',
+      rotation: 'rotation',
     })
   }
 };

@@ -60,7 +60,7 @@ function getPacketData(packet) {
     // y: ${portRes.y},
     // θ: ${portRes.theta}`);
   } else if (goodRegex.test(packet)) {
-    console.log('It\'s all good!');
+    // console.log('It\'s all good!');
   }
 }
 

@@ -41,9 +41,38 @@ export default {
     cube.rotation.y = 0;
     scene.add(cube);
 
-    camera.position.set(0, 4, 0);
+    camera.position.set(0, 5, 0);
     camera.up = new THREE.Vector3(0, 0, 1);
     camera.lookAt(new THREE.Vector3(0, 0, 0));
+
+    // SPHERES
+    const sphereGeometry = new THREE.SphereGeometry(0.1, 8, 6);
+    const sphereMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffffff
+    });
+    const sphere1 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    sphere1.position.x = 1 / Math.sqrt(2);
+    sphere1.position.y = 0;
+    sphere1.position.z = 1 / Math.sqrt(2);
+    scene.add(sphere1);
+
+    const sphere2 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    sphere2.position.x = -1 / Math.sqrt(2);
+    sphere2.position.y = 0;
+    sphere2.position.z = 1 / Math.sqrt(2);
+    scene.add(sphere2);
+
+    const sphere3 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    sphere3.position.x = -1 / Math.sqrt(2);
+    sphere3.position.y = 0;
+    sphere3.position.z = -1 / Math.sqrt(2);
+    scene.add(sphere3);
+
+    const sphere4 = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    sphere4.position.x = 1 / Math.sqrt(2);
+    sphere4.position.y = 0;
+    sphere4.position.z = -1 / Math.sqrt(2);
+    scene.add(sphere4);
 
     const floorGeometry = new THREE.BoxGeometry(30, 1, 30);
     const floorMaterial = new THREE.MeshBasicMaterial({
@@ -54,70 +83,16 @@ export default {
     floor.position.y = -1;
     floor.receiveShadow = true;
 
-    // line// material
-    // const lineGeometry = new THREE.BufferGeometry(1, 0.2, 1);
-    // const linePositions = new Float32Array(500 * 3);
-    // lineGeometry.addAttribute('position', new THREE.BufferAttribute(linePositions, 3));
-    // const lineMaterial = new THREE.LineBasicMaterial({
-    //   color: 0xff0000,
-    //   linewidth: 2
-    // });
-    // const line = new THREE.Line(lineGeometry, lineMaterial);
-    // scene.add(line);
-
-    // // update line
-    // function updateLine() {
-    //   linePositions[count * 3 - 3] = mouse.x;
-    //   linePositions[count * 3 - 2] = mouse.y;
-    //   linePositions[count * 3 - 1] = mouse.z;
-    //   line.geometry.attributes.position.needsUpdate = true;
-    // }
-
-    // // mouse move handler
-    // function onMouseMove(event) {
-    //   mouse.x = (event.clientX / CANVAS_WIDTH) * 2 - 1;
-    //   mouse.y = -(event.clientY / CANVAS_HEIGHT) + 1;
-    //   mouse.z = 0;
-    //   mouse.unproject(camera);
-    //   if (count !== 0) {
-    //     updateLine();
-    //   }
-    // }
-
-    // // add point
-    // function addPoint() {
-    //   // console.log(`point nr:  ${count}: ${mouse.x} ${mouse.y} ${mouse.z}.`);
-    //   const positions = { x: mouse.x, y: mouse.y, z: mouse.z };
-    //   linePositions[count * 3 + 0] = positions.x;
-    //   linePositions[count * 3 + 1] = positions.y;
-    //   linePositions[count * 3 + 2] = positions.z;
-    //   count += 1;
-    //   store.commit('ADD_POINTS', positions);
-    //   line.geometry.setDrawRange(0, count);
-    //   updateLine();
-    // }
-
-    // // mouse down handler
-    // function onMouseDown() {
-    //   // on first click add an extra point
-    //   if (count === 0) {
-    //     addPoint();
-    //   }
-    //   addPoint();
-    // }
-
-    // document.addEventListener('mousemove', onMouseMove, false);
-    // document.addEventListener('mousedown', onMouseDown, false);
-
     // LIGHT
-
     const spot1 = new THREE.SpotLight(0xffffff);
     spot1.position.set(10, 100, 0);
     scene.add(spot1);
 
+    console.log(document.querySelector('canvas'));
+
     const animate = () => {
       requestAnimationFrame(animate);
-      cube.position.x = this.position.x * 1;
+      cube.position.x = this.position.x * -1;
       cube.position.z = this.position.y * 1;
       cube.rotation.y = this.rotation;
       // controls.update();
