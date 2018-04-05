@@ -78,7 +78,7 @@ export default {
         // CONSTANTS:
         const baseMotors = 0.77469997968; // distance between motor wheels
         const minSpeed = 11;
-        const maxSpeed = 24; // one rotation per second
+        const maxSpeed = this.active.speed; // one rotation per second
         const cycles = 1;
         const speed = { left: 0, right: maxSpeed }; // left/right speeds in m/s
         const wpCount = this.active.waypoints.length;

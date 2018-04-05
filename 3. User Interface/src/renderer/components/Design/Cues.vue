@@ -39,7 +39,7 @@ const cues = [{
   name: 'Start of Something New',
   targets: 'A',
   duration: 9.45,
-  speed: 2,
+  speed: 30,
   color: '39CCCC',
   waypoints: [
     {
@@ -70,7 +70,7 @@ const cues = [{
   name: 'Get\'cha Head In the Game',
   targets: 'A',
   duration: 12.45,
-  speed: 3,
+  speed: 24,
   color: 'B10DC9',
   waypoints: [
     {
@@ -105,7 +105,7 @@ const cues = [{
   name: 'What I\'ve Been Looking For',
   targets: 'A',
   duration: 3.4,
-  speed: 2,
+  speed: 60,
   color: 'FF851B',
   waypoints: [],
   start: {}
