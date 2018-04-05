@@ -14,7 +14,11 @@
     components: {
       Navigation
     },
-    name: 'autoset-vue-electron'
+    name: 'autoset-vue-electron',
+    mounted() {
+      console.log('Pinging server');
+      this.$port.write('1234|PING|\n');
+    }
   };
 </script>
 
@@ -68,5 +72,16 @@
   }
   nav .nav-item.active {
       text-shadow: 0px 2px 5px white;
+  }
+  button {
+    color: white;
+    background: black;
+    border: 1px solid white;
+    padding: 5px;
+    margin: 5px;
+    cursor: pointer;
+  }
+  input[type="text"] {
+    color: black;
   }
 </style>

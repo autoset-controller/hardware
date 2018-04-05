@@ -57,12 +57,14 @@
   },
   "dependencies": {
     "bulma": "^0.6.2",
+    "feather-icons": "^4.7.0",
     "npm": "^5.8.0",
     "serialport": "^6.0.5",
     "three-orbit-controls": "^82.1.0",
     "three.js": "^0.77.1",
     "vue": "^2.3.3",
     "vue-electron": "^1.0.6",
+    "vue-feather-icons": "^4.7.0",
     "vue-router": "^2.5.3",
     "vuex": "^2.3.1"
   },

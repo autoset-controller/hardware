@@ -99,7 +99,7 @@ export default {
         }
       ];
       const speed = { left: 0, right: maxSpeed }; // left/right speeds in m/s
-      const wpCount = waypoints.size;
+      const wpCount = waypoints.length;
       let waypointPos = waypoints[wpCurrent];
 
       // MAIN LOOP
@@ -108,7 +108,8 @@ export default {
       const ispassed = checkSide(platformPos, waypointPos);
       if (ispassed === 1) {
         wpCurrent++;
-        if (wpCurrent > wpCount) {
+        if (wpCurrent >= wpCount) {
+          console.log('Finished one cycle.');
           wpCurrent = 0;
           completeCycles++;
         }
@@ -116,22 +117,26 @@ export default {
       }
       // Determine appropriate ratio for current scenario
       const ratio = getRatio(
-        speed, baseMotors,
-        platformPos, waypointPos
+        speed, baseMotors, platformPos, waypointPos
       );
       // Set speed of motors: In final version, send out packet
       speed.left = Math.round(ratio[0] * (maxSpeed - minSpeed) + Math.sign(ratio[0]) * minSpeed);
       speed.right = Math.round(ratio[1] * (maxSpeed - minSpeed) + Math.sign(ratio[1]) * minSpeed);
       const packet = `1234|0|0|353|0|${speed.left}|${speed.right}|0|${speed.left + speed.right}\n`;
       console.log(`Index is: ${wpCurrent}, cycles run is: ${completeCycles}, ratio is ${ratio[0]}, ${ratio[1]} and speed is ${speed.left}, ${speed.right}`);
-      this.$port.write(packet, () => {
-        console.log('Wrote');
+      // this.$port.write(packet, () => {
+      //   console.log('Wrote');
         setTimeout(() => {
           if (completeCycles < cycles && this.canRun) {
             this.followPath(wpCurrent, completeCycles);
           }
+          else {
+            console.log('We\'re done here.');
+            this.pause();
+            this.canRun = false;
+          }
         }, 100);
-      });
+      // });
     },
     draw() {
       this.TOGGLE_DRAWING();

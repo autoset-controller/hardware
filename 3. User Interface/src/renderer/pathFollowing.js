@@ -1,3 +1,5 @@
+/*eslint-disable*/
+import store from './store';
 function mod(n, m) {
   return ((n % m) + m) % m;
 }
@@ -20,34 +22,54 @@ function getIntersect(platform, waypoint) {
     y: Math.sin(waypoint.theta) /
     Math.sqrt(Math.cos(waypoint.theta) ** 2 + Math.sin(waypoint.theta) ** 2)
   }; // unit direction vector for waypoint
-  const q = { x: platform.x * 1, y: platform.y * 1 }; // position vector for platfomr
+  const q = { x: platform.x * 1, y: platform.y * 1 }; // position vector for platform
   const s = {
     x: Math.cos(platform.theta) /
     Math.sqrt(Math.cos(platform.theta) ** 2 + Math.sin(platform.theta) ** 2),
     y: Math.sin(platform.theta) /
     Math.sqrt(Math.cos(platform.theta) ** 2 + Math.sin(platform.theta) ** 2)
   }; // unit direction vector for platform
+  const r_orthagonal = {
+    x: Math.cos(waypoint.theta + Math.PI / 2) /
+    Math.sqrt(Math.cos(waypoint.theta + Math.PI / 2) ** 2 + Math.sin(waypoint.theta + Math.PI / 2) ** 2),
+    y: Math.sin(waypoint.theta + Math.PI / 2) /
+    Math.sqrt(Math.cos(waypoint.theta + Math.PI / 2) ** 2 + Math.sin(waypoint.theta + Math.PI / 2) ** 2)
+  }; // unit direction vector orthagonal to waypoint direction vector
 
-  // CALCULATE PROJECTION
-  const dist = Math.abs(Math.sqrt((p.x - q.x) ** 2 + (p.y - q.y) ** 2) *
-  Math.cos(waypoint.theta - platform.theta));
+  // CALCULATE PROJECTION VECTORS
+  const projLength = Math.sqrt((p.x - q.x) ** 2 + (p.y - q.y) ** 2) *
+  Math.cos(waypoint.theta - platform.theta);
+  const projection = { x: r.x * projLength, y: r.y * projLength };
+  const rejection = { x: (p.x - q.x) - projection.x, y: (p.y - q.y) - projection.y };
+  // const rejLength = Math.sqrt(rejection.x ** 2 + rejection.y ** 2);
+
   // CALCULATE INTERSECT
   const crossA = (q.x - p.x) * r.y - (q.y - p.y) * r.x; // (q-p) x r
   const crossB = r.x * s.y - r.y * s.x; // (rxs)
 
-  const intersect = { x: 0, y: 0 };
-  const target = { x: 0, y: 0 };
+  // const crossC = (q.x - p.x) * r.y - (q.y - p.y) * r.x;
+  // const crossD = r.x * r_orthagonal.y - r.y * r_orthagonal.x;
+
+  let intersect = { x: 0, y: 0 };
+  let target = { x: 0, y: 0 };
   let direction = 0;
+
+  let dThetaWP = 0;
+  let dThetaTarget = 0;
+  let targetTheta = 0;
 
   // vectors are collinear
   if (parseFloat(crossA).toFixed(3) === 0 && parseFloat(crossB).toFixed(3) === 0) {
     // return intersect at ideal intersect point to produce linear motion
-    intersect.x = p.x - dist / 4 * r.x;
-    intersect.y = p.y - dist / 4 * r.y;
-    target.x = p.x - dist / 4 * r.x;
-    target.y = p.y - dist / 4 * r.y;
+    intersect.x = p.x - projLength / 2 * r.x;
+    intersect.y = p.y - projLength / 2 * r.y;
+    target.x = p.x - projLength / 2 * r.x;
+    target.y = p.y - projLength / 2 * r.y;
 
     direction = Math.sign((target.x - intersect.x) / q.x);
+
+    dThetaWP = 0;
+    dThetaTarget = 0;
   } else if (parseFloat(crossB).toFixed(3) === 0) { // vectors are parallel
     // no intersect
     intersect.x = NaN;
@@ -56,19 +78,27 @@ function getIntersect(platform, waypoint) {
     target.y = NaN;
 
     direction = NaN;
+
+    dThetaWP = 0;
+    dThetaTarget = 0;
   } else { // vectors intersect at one point
     // calculate intersect based on constant derived from cross products
     const u = crossA / crossB;
     intersect.x = q.x + u * s.x;
     intersect.y = q.y + u * s.y;
-    target.x = p.x - dist / 4 * r.x;
-    target.y = p.y - dist / 4 * r.y;
+    target.x = p.x - projLength / 2 * r.x;
+    target.y = p.y - projLength / 2 * r.y;
 
     direction = (target.x - intersect.x) / q.x;
+
+    targetTheta = mod(Math.atan2(target.y - platform.y, target.x - platform.x), 2 * Math.PI);
+
+    dThetaWP = waypoint.theta - platform.theta;
+    dThetaTarget = targetTheta - platform.theta;
   }
 
   return {
-    intersect, target, direction, dist
+    intersect, target, direction, projection, rejection, dThetaWP, dThetaTarget
   };
 }
 
@@ -83,11 +113,11 @@ function checkSide(platformPos, waypointPos) {
   const wpNorm = { x: Math.cos(waypointPos.theta), y: Math.sin(waypointPos.theta) };
   const posDiff = { x: platformPos.x - waypointPos.x, y: platformPos.y - waypointPos.y };
 
-  console.log('norm, diff: ', wpNorm, posDiff);
+  // console.log('norm, diff: ', wpNorm, posDiff);
 
   const projection = posDiff.x * wpNorm.x + posDiff.y * wpNorm.y;
 
-  console.log('projection', projection);
+  // console.log('projection', projection);
 
   const side = Math.sign(parseFloat(projection).toFixed(2));
 
@@ -103,40 +133,83 @@ function getState(platformPos, waypointPos) {
   // determine side of waypoint that platform is on
   const side = checkSide(platformPos, waypointNorm); // -1 = left, 0 = on, +1 = right
   // determine whether platform is facing toward or away from the waypoint
-  let facing = 0; // 1 = towards, -1 = away
+  let quadrant = -1; /* 0 = Facing with waypoint towards line,
+                       1 = Facing with waypoint away from line,
+                       2 = Facing against waypoint towards line,
+                       3 = Facing against waypoint away form line */
+
   // platform is to the left of the waypoint
   console.log(mod(platformPos.theta - waypointPos.theta, 2 * Math.PI));
   const dTheta = mod(platformPos.theta - waypointPos.theta, 2 * Math.PI);
 
-  if (side === 1 || side === -1) {
-    if (dTheta >= 0 && dTheta <= Math.PI / 2 ||
-      dTheta >= 3 * Math.PI / 2 && dTheta <= 2 * Math.PI) {
-      facing = 1;
-    } else {
-      facing = -1;
+  // platform is to the left of the waypoint
+  if (side === -1) {
+    // Quadrant 0
+    if (2 * Math.PI > dTheta && dTheta >= 3 * Math.PI / 2) {
+      quadrant = 0;
     }
+    // Quadrant 1
+    else if (Math.PI / 2 > dTheta && dTheta >= 0) {
+      quadrant = 1;
+    }
+    // Quadrant 2
+    else if (3 * Math.PI / 2 > dTheta && dTheta >= Math.PI) {
+      quadrant = 2;
+    }
+    // Quadrant 3
+    else {
+      quadrant = 3;
+    }
+
+  // platform is to the right of the waypoint
+  } else if (side === 1) {
+    // Quadrant 0
+    if (Math.PI / 2 >= dTheta && dTheta > 0) {
+      quadrant = 0;
+    }
+    // Quadrant 1
+    else if ((dTheta === 0 || 2 * Math.PI >= dTheta) && dTheta > 3 * Math.PI / 2) {
+      quadrant = 1;
+    }
+    // Quadrant 2
+    else if (Math.PI >= dTheta && dTheta > Math.PI / 2) {
+      quadrant = 2;
+    }
+    // Quadrant 3
+    else {
+      quadrant = 3;
+    }
+
   // platform is in line with the waypoint
-  } else if (parseFloat(platformPos.theta).toFixed(2) ===
-  parseFloat(waypointPos.theta).toFixed(2)) {
-    // if platform is facing in the same direction as the waypoint
-    facing = 1;
-  } else if (parseFloat(platformPos.theta).toFixed(2) ===
-  parseFloat(mod(waypointPos.theta - Math.PI, 2 * Math.PI)).toFixed(2)) {
-    facing = -1;
   } else {
-    facing = 1;
+    // platform is facing with waypoint
+    if (Math.PI / 2 > dTheta && dTheta >= 0 || 2 * Math.PI > dTheta && dTheta > 3 * Math.PI / 2) {
+      quadrant = 0;
+    }
+    // platform is facing against waypoint
+    else {
+      quadrant = 2;
+    }
   }
   // determine whether intersection between vectors overshoots
   // (1), undershoots (-1), or hits (0) the target point
   let mark = 0;
   const {
-    intersect, target, direction, dist
+    intersect, target, direction, projection, rejection, dThetaWP, dThetaTarget
   } = getIntersect(platformPos, waypointPos);
-  console.log('Intersect: ', intersect, ' Distance: ', dist, ' Target: ', target);
+
+  const projLength = Math.sqrt(projection.x ** 2 + projection.y ** 2);
+  console.log(rejection);
+  // const rejLength = Math.sqrt(rejection.x ** 2 + rejection.y ** 2);
+  console.log('Intersect: ', intersect, ' Target: ', target);
+  // store.commit('CHANGE_CUE', {waypoints: [{ x: target.x, y: target.y }]});
+  // store.commit('CHANGE_TARGET', { x: intersect.x, y: intersect.y });
+
   // if intersect exists
   if (!Number.isNaN(intersect.x)) {
     // if intersect and target are reasonably close
-    if (Math.sqrt((intersect.x - target.x) ** 2 + (intersect.y - target.y) ** 2) < dist / 20) {
+    if (Math.sqrt((intersect.x - target.x) ** 2 +
+    (intersect.y - target.y) ** 2) < projLength / 20) {
       mark = 0;
     } else if (direction >= 0) {
       mark = 1;
@@ -147,7 +220,7 @@ function getState(platformPos, waypointPos) {
     mark = -2;
   }
 
-  return { side, facing, mark };
+  return { side, quadrant, mark, dThetaWP, dThetaTarget };
 }
 
 /**
@@ -163,178 +236,187 @@ function getRatio(
   speed, motorDistance, platformPos,
   waypointPos
 ) {
-  const { side, facing, mark } = getState(platformPos, waypointPos);
+  const {
+    side, quadrant, mark, dThetaWP, dThetaTarget
+  } = getState(platformPos, waypointPos);
 
   let ratio = [];
 
+  const diffSpeed = Math.cos(dThetaTarget) ** 3;
+
+  const E = [1, 1]; // Ratio for cases that should not occur.
   const F = [1, 1];
-  const BL = [0.25, 1];
-  const BR = [1, 0.25];
-  const TL = [-0.25, 1];
-  const TR = [1, -0.25];
-  const RO = [1, -1];
+  const BL = [diffSpeed, 1];
+  const BR = [1, diffSpeed];
+  const TL = [diffSpeed, 1];
+  const TR = [1, diffSpeed];
+  // const RO = [1, -1];
   // const LO = [-1, 1];
 
-  switch (facing) {
-    // if platform is facing away from waypoint
-    case -1:
+  switch (quadrant) {
+    // platform is facing with the waypoint and towards the line
+    case 0:
       switch (side) {
         // if platform is to the left of the waypoint
         case -1:
           switch (mark) {
             // if no intersect exists
             case -2:
-              ratio = TL;
+              ratio = E;
               break;
             // if intersect undershoots the target
             case -1:
-              ratio = TL;
+              ratio = BL;
               break;
             // if intersect is within the target
             case 0:
-              ratio = TL;
+              ratio = F;
               break;
             // if intersect overshoots the target
             case 1:
-              ratio = TL;
+              ratio = BR;
               break;
             default:
-              ratio = F;
+              ratio = E;
           }
           break;
         // if platform is in line with the waypoint
         case 0:
-          switch (mark) {
-            // if no intersect exists
-            case -2:
-              ratio = RO;
-              break;
-            // if intersect undershoots the target
-            case -1:
-              ratio = F;
-              break;
-            // if intersect is within the target
-            case 0:
-              ratio = RO;
-              break;
-            // if intersect overshoots the target
-            case 1:
-              ratio = F;
-              break;
-            default:
-              ratio = F;
-          }
+          ratio = F;
           break;
         // if platform is to the right of the waypoint
         case 1:
           switch (mark) {
             // if no intersect exists
             case -2:
-              ratio = TR;
+              ratio = E;
               break;
             // if intersect undershoots the target
             case -1:
-              ratio = TR;
+              ratio = BR;
               break;
             // if intersect is within the target
             case 0:
-              ratio = TR;
+              ratio = F;
               break;
             // if intersect overshoots the target
             case 1:
-              ratio = TR;
+              ratio = BL;
               break;
             default:
-              ratio = F;
+              ratio = E;
           }
           break;
         default:
-          ratio = F;
+          ratio = E;
           break;
       }
       break;
-    // if platform is facing towards waypoint
+    // platform is facing with the waypoint and away from the line
     case 1:
       switch (side) {
         // if platform is to the left of the waypoint
         case -1:
+          ratio = TR;
+          break;
+        // if platform is in line with the waypoint
+        case 0:
+          ratio = E;
+          break;
+        // if platform is to the right of the waypoint
+        case 1:
+          ratio = TL;
+          break;
+        default:
+          ratio = E;
+          break;
+      }
+      break;
+    // platform is facing against the waypoint and towards the line
+    case 2:
+      switch (side) {
+        // if platform is to the left of the waypoint
+        case -1:
+          ratio = TL;
+          break;
+        // if platform is in line with the waypoint
+        case 0:
+          ratio = F;
+          break;
+        // if platform is to the right of the waypoint
+        case 1:
+          ratio = TR;
+          break;
+        default:
+          ratio = E;
+          break;
+      }
+      break;
+    // platform is facing against the waypoint and away from the line
+    case 3:
+      switch (side) {
+        // if platform is to the left of the waypoint
+        case -1:
           switch (mark) {
             // if no intersect exists
             case -2:
-              ratio = BR;
+              ratio = TL;
               break;
             // if intersect undershoots the target
             case -1:
-              ratio = BL;
+              ratio = TR;
               break;
             // if intersect is within the target
             case 0:
-              ratio = F;
+              ratio = TL;
               break;
             // if intersect overshoots the target
             case 1:
-              ratio = BR;
+              ratio = TL;
               break;
             default:
-              ratio = [1, 1];
+              ratio = E;
           }
           break;
         // if platform is in line with the waypoint
         case 0:
-          switch (mark) {
-            // if no intersect exists
-            case -2:
-              ratio = F;
-              break;
-            // if intersect undershoots the target
-            case -1:
-              ratio = F;
-              break;
-            // if intersect is within the target
-            case 0:
-              ratio = F;
-              break;
-            // if intersect overshoots the target
-            case 1:
-              ratio = F;
-              break;
-            default:
-              ratio = F;
-          }
+          ratio = E;
           break;
         // if platform is to the right of the waypoint
         case 1:
           switch (mark) {
             // if no intersect exists
             case -2:
-              ratio = BL;
+              ratio = TR;
               break;
             // if intersect undershoots the target
             case -1:
-              ratio = BR;
+              ratio = TL;
               break;
             // if intersect is within the target
             case 0:
-              ratio = F;
+              ratio = TR;
               break;
             // if intersect overshoots the target
             case 1:
-              ratio = BL;
+              ratio = TR;
               break;
             default:
-              ratio = F;
+              ratio = E;
           }
           break;
         default:
-          ratio = F;
+          ratio = E;
           break;
       }
       break;
     default:
-      ratio = F;
+      ratio = E;
       break;
   }
-  console.log('SFM', side, facing, mark);
+  console.log('SQM', side, quadrant, mark);
+  console.log('ratio', ratio);
+  // console.log('ratio', ratio);
   return ratio;
 }
 

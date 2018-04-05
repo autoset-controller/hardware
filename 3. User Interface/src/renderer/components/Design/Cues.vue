@@ -20,8 +20,8 @@
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(cue, index) in cues" @click="configure(index)" :key='index'>
-          <th>{{ index + 1 }}</th>
+        <tr v-for="(cue, index) in cues" @click="changeCue(index)" :key='index'>
+          <th v-bind:style="{ 'color': `#${cue.color}` }">{{ index + 1 }}</th>
           <td>{{ cue.name }}</td>
           <td>{{ cue.targets }}</td>
           <td>{{ cue.duration }}</td>
@@ -34,18 +34,82 @@
 
 <script>
 // const store = require('vuex');
+import { mapMutations } from 'vuex';
 const cues = [{
-  name: 'Starting Motion',
+  name: 'Start of Something New',
   targets: 'A',
   duration: 9.45,
-  speed: 2
+  speed: 2,
+  color: '39CCCC',
+  waypoints: [
+    {
+      x: 1 / Math.sqrt(2),
+      y: 1 / Math.sqrt(2),
+      theta: 3 * Math.PI / 4
+    }, {
+      x: -1 / Math.sqrt(2),
+      y: 1 / Math.sqrt(2),
+      theta: 5 * Math.PI / 4
+    }, {
+      x: -1 / Math.sqrt(2),
+      y: -1 / Math.sqrt(2),
+      theta: 7 * Math.PI / 4
+    }, {
+      x: 1 / Math.sqrt(2),
+      y: -1 / Math.sqrt(2),
+      theta: Math.PI / 4
+    }
+  ],
+  start: {
+    x: 2,
+    y: 0,
+    theta: Math.PI
+  }
 },
 {
-  name: 'All Around the World',
-  targets: 'B',
+  name: 'Get\'cha Head In the Game',
+  targets: 'A',
   duration: 12.45,
   speed: 3,
+  color: 'B10DC9',
+  waypoints: [
+    {
+      x: Math.PI,
+      y: 0,
+      theta: Math.PI - 1
+    }, {
+      x: Math.PI / 2,
+      y: 1,
+      theta: Math.PI
+    }, {
+      x: 0,
+      y: 0,
+      theta: Math.PI + 1
+    }, {
+      x: -Math.PI / 2,
+      y: -1,
+      theta: Math.PI
+    }, {
+      x: -Math.PI,
+      y: 0,
+      theta: Math.PI - 1
+    }
+  ],
+  start: {
+    x: 4,
+    y: -1,
+    theta: Math.PI
+  }
 },
+{
+  name: 'What I\'ve Been Looking For',
+  targets: 'A',
+  duration: 3.4,
+  speed: 2,
+  color: 'FF851B',
+  waypoints: [],
+  start: {}
+}
 ];
 console.log();
 export default {
@@ -54,6 +118,14 @@ export default {
       cues,
     };
   },
+  methods: {
+    ...mapMutations([
+      'CHANGE_CUE'
+    ]),
+    changeCue(index) {
+      this.CHANGE_CUE(this.cues[index]);
+    }
+  }
 };
 </script>
 
