@@ -174,7 +174,7 @@ int main(int argc, char* argv)  {
 			dR_in = dR_in * 2 * M_PI / TICKS_PER_CYCLE;
 			dL_in = dL_in * 2 * M_PI / TICKS_PER_CYCLE;
 
-			dtheta = (radius / (2 * encoderDist)) * (dR_in - dL_in);
+			dtheta = radius / encoderDist * (dR_in - dL_in);
 			theta = theta + dtheta;
 			theta = fmod(theta, 2 * M_PI);
 
@@ -214,6 +214,15 @@ void getSerialData() {
 					break;
 				case 2:
 					plat_in = atoi(plat_in_str);
+					DEBUG(plat_in_str);
+					if(strcmp(plat_in_str, "PING") == 0) {
+						DEBUG("responding to PING...\n");
+						sendPositionPacket(x, y, theta);
+						clearLine(serialPort);
+						clearPacket();
+						break;
+					}
+
 					if(plat_in != platform && plat_in) {
 						DEBUG("ignoring packet: platform mismatch\n");
 						clearLine(serialPort);
