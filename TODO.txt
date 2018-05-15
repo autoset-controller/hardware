@@ -1,0 +1,44 @@
+Things to do:
+
+Logistics:
+- Patent AutoSet Controller and AutoSet FreeRoam
+- Trademark the AutoSet brand
+
+Hardware:
+- Fix the encoder wheel mount
+- Fix charging cables
+- Build a miniature prototype to demonstrate multi-platform capabilities of the software.
+- Test microphone-based communication/research linear time code
+- Perform reliability/distance testing for XBee
+- Perform speed/weight/power testing for platform motors, generate curveset
+- Perform speed/reliability testing for platform encoders
+- Make tutorial for construction of platform
+
+Drivers:
+- Refactor drivers so that methods intake required inputs.
+- Remove looping inside packet processing, or reduce its impact.
+- Implement configuration broadcast, configuration response processing.
+- Implement response for E_STOP and PAUSE.
+- Make tutorial for loading drivers onto platform.
+
+Controller:
+- Implement handshakes on E_STOP, PAUSE, attribute setting, and motor commands.
+- Each platform should have a window size of 1 for packet send/receive.
+- Implement configuration for COM ports, xbox controller.
+- Implement configuration for platforms (platform ID, platform color, attributes, etc.).
+- Implement adding, modifying, and deleting cues.
+- Implement cue grouping, auto-follow, and auto-continue.
+- Implement drawing cues, populating waypoints.
+- Implement autogeneration of waypoints when driving.
+- Connect with local storage to allow saving of attributes.
+- Research importing descriptor files to render stage limits.
+- Ensure that platforms never go past stage limits, both when generating cues and when driving.
+- Implement adding objects of varying shape and size.
+
+Website:
+- Make the website.
+- Host executables, drivers, and link to github.
+
+Backburner:
+- Implement encryption?
+- Implement free roaming camera.
