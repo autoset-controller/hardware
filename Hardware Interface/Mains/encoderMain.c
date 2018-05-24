@@ -29,6 +29,8 @@ double motorDist = 2.5416666 * .3048; //distance between motor wheels
 double TICKS_PER_CYCLE = 4096; //P/R on encoder * 4
 
 //forward decl
+int getInitResponse();
+void clearInitPacket();
 void getSerialData();
 int processPacket(int, double, double, double, double);
 void sendPositionPacket(double, double, double);
@@ -57,19 +59,43 @@ char theta_str[128];
 char checksum_str[128];
 
 //setup info
-int serialPort;
+int serialXBee;
+int serialGPIO; //for communication from the encoder brain to the motor brain
 int update;
 
 //Computer Info
 char delim = '|';
-int key = 1234;
-int platform = 0;
+int key = -1;
+int platform = -1;
 int type = 1; //0 for motor brain, 1 for encoder brain
 char mac_address[256]; //MAC address (eth0) of brain
+char platform_name[256] = "freeroam";
 
 //serial packet info
 int valuesLoaded = 0;
+int initialized = 0;
+int initPacketDetected = 0;
 
+//init
+char init_str[128];
+char response_init_str[128];
+char mac_init_str[128];
+char key_init_str[128];
+char platform_init_str[128];
+char encoderdist_init_str[128];
+char encoderradius_init_str[128];
+char encoderticks_init_str[128];
+char checksum_init_str[128];
+
+int response_init;
+int key_init;
+int platform_init;
+double encoderdist_init;
+double encoderradius_init;
+int encoderticks_init;
+double checksum_init;
+
+//general operation
 char key_in_str[128];
 char plat_in_str[128];
 char type_in_str[128];
@@ -93,18 +119,59 @@ double checksum_in;
 //Test program that send the position of a platform driving in circles.
 int main(int argc, char* argv)  {
 
-	DEBUG("Encoder Test:\n");
-
+	DEBUG("Booting Encoder Brain...\n");
+	delay(2000);
 	DEBUG("MAC address: ");
 	FILE* mac = fopen("/sys/class/net/eth0/address", "r");
 	//DEBUG("mac open\n");
 	fgets(mac_address, 255, mac);
 	//DEBUG("got mac_address\n");
 	fclose(mac);
+	mac_address[17] = '\0';
 	DEBUG("%s\n", mac_address);
 
 	wiringPiSetup();
-	serialPort = serialOpen("/dev/ttyUSB0", XBEE_BAUD);
+	serialXBee = serialOpen("/dev/ttyUSB0", XBEE_BAUD);
+	serialGPIO = serialOpen("/dev/ttyS0", XBEE_BAUD);
+
+	//Broadcast MAC address and platform name, and wait for response from controller
+	char initString[256];
+	sprintf(initString, "init|%s|%s|%s|%s|\n", mac_address, mac_address, mac_address, platform_name);
+
+	DEBUG("Waiting for configuration...\n");
+
+	while(initialized != 1) {
+		printf("sending out packet: %s", initString);
+		serialPuts(serialXBee, initString);
+		//delay
+		int i = 0, j = 0;
+		for(i = 0; i < 32767; i++) {
+			for(j = 0; j < 32767; j++) {}
+		}
+
+		if(serialDataAvail(serialXBee) > 0) {
+			getInitResponse(serialXBee);
+		}
+	}
+
+	DEBUG("Configuration Response Received.\n");
+
+	//send init values to motor brain
+	char keyString[256];
+	char platString[256];
+	sprintf(keyString, "-1|-1|0|0|1|0|%d|%d|%d|\n", key, key, key+key);
+	sprintf(platString, "%d|-1|0|0|1|1|%d|%d|%d|\n", key, platform, platform, platform+platform);
+	serialPuts(serialGPIO, keyString);
+	serialPuts(serialGPIO, platString);
+
+	DEBUG("Sent configuration to motor brain.\n");
+
+	//send handshake to controller
+	char handshake[256];
+	sprintf(handshake, "init|%s|%d|\n", mac_address, key);
+	serialPuts(serialXBee, handshake);
+
+	DEBUG("Sent handshake to controller.\n");
 
 	//Initialize encoder pins
 	pinMode(phaseAPinL, INPUT);
@@ -128,9 +195,9 @@ int main(int argc, char* argv)  {
 
 	while(1) {
 		//Check for serial data
-		if(serialDataAvail(serialPort) > 0) {
+		if(serialDataAvail(serialXBee) > 0) {
 			//interpret serial data and act on it
-			getSerialData();
+			getSerialData(serialXBee);
 		}
 
 		//calculate change in x,y,theta
@@ -196,20 +263,166 @@ int main(int argc, char* argv)  {
 
 ///PACKET FUNCTIONS:
 
-void getSerialData() {
-	while(serialDataAvail(serialPort) > 0) {
-		char c = (char)serialGetchar(serialPort);
+// process init response from controller
+// response should look like:
+// "init|<response id>|<MAC_ADDRESS>|<key>|<platform id>|<radius>|<encoder distance>|<ticks per rotation>|<checksum>|\n"
+int getInitResponse(int port) {
+	while(serialDataAvail(port)) {
+		char c = (char)serialGetchar(port);
 		DEBUG("%c", c);
+		//add loaded value
 		if(c == '|') {
 			valuesLoaded += 1;
 			//preemptively ignore packets
 			switch(valuesLoaded) {
 				case 1:
-					key_in = atoi(key_in_str);
-					if(key_in != key) {
-						DEBUG("ignoring packet: key mismatch\n");
-						clearLine(serialPort);
-						clearPacket();
+					if(strcmp(init_str, "init") != 0) {
+						DEBUG("ignoring packet: not an init packet\n");
+						clearLine(port);
+						clearInitPacket();
+					}
+					break;
+				case 3:
+					//if MAC addresses do not match, ignore the packet
+					if(strcmp(mac_init_str, mac_address) != 0) {
+						DEBUG("ignoring packet: mac address mismatch\n");
+						clearLine(port);
+						clearInitPacket();
+						return 0;
+					}
+					break;
+			}
+		}
+		//process completed packet
+		else if(c == '\n') {
+			//if the wrong number of packet values have been loaded, ignore the packet
+			if(valuesLoaded != 9) {
+				clearInitPacket();
+				return 0;
+			}
+			//load values
+			response_init = atoi(response_init_str);
+			key_init = atoi(key_init_str);
+			platform_init = atoi(platform_init_str);
+			encoderdist_init = atof(encoderdist_init_str);
+			encoderradius_init = atof(encoderradius_init_str);
+			encoderticks_init = atoi(encoderticks_init_str);
+			checksum_init = atof(checksum_init_str);
+
+			//confirm checksum matches radius + distance + ticks (within tolerance)
+			double check = encoderdist_init + encoderradius_init + (double)encoderticks_init;
+			if(check < checksum_init - 0.000002 || check > checksum_init + 0.000002) {
+				clearInitPacket();
+				return 0;
+			}
+
+			//attempt to load values into memory
+			int isBad = 0;
+			isBad += processPacket(1, 0, key_init, key_init, 0 + key_init + key_init);
+			isBad += processPacket(1, 1, platform_init, platform_init, 1.0 + platform_init + platform_init);
+			isBad += processPacket(1, 2, encoderdist_init, encoderdist_init, 2.0 + encoderdist_init + encoderdist_init);
+			isBad += processPacket(1, 3, encoderradius_init, encoderradius_init, 3.0 + encoderradius_init + encoderradius_init);
+			isBad += processPacket(1, 4, encoderticks_init, encoderticks_init, 4.0 + encoderticks_init + encoderticks_init);
+
+			//if any values are invalid, reject the packet and return bad string
+			char iString[128];
+				if(isBad > 0) {
+				sprintf(iString, "bad:%d\n", response_init);
+				clearInitPacket();
+				return 0;
+			}
+			//if all values are valid, return good string and terminate initialization
+			else {
+				sprintf(iString, "good:%d\n", response_init);
+				clearInitPacket();
+				initialized = 1;
+				return 1;
+			}
+		}
+		//read input char
+		else {
+			char tmp[2] = "\0\0";
+			tmp[0] = c;
+
+			// "init|<response id>|<MAC_ADDRESS>|<key>|<platform id>|<encoder distance>|<radius>|<ticks per rotation>|<checksum>|\n"
+			switch(valuesLoaded) {
+				//process init entry
+				case 0:
+					strcat(init_str, tmp);
+					break;
+
+				//process response id entry
+				case 1:
+					strcat(response_init_str, tmp);
+					break;
+
+				//process MAC entry
+				case 2:
+					strcat(mac_init_str, tmp);
+					break;
+
+				//process key entry
+				case 3:
+					strcat(key_init_str, tmp);
+					break;
+
+				//process platform id entry
+				case 4:
+					strcat(platform_init_str, tmp);
+					break;
+
+				//process encoderDist entry
+				case 5:
+					strcat(encoderdist_init_str, tmp);
+					break;
+
+				//process radius entry
+				case 6:
+					strcat(encoderradius_init_str, tmp);
+					break;
+
+				//process ticks entry
+				case 7:
+					strcat(encoderticks_init_str, tmp);
+					break;
+
+				//process checksum entry
+				case 8:
+					strcat(checksum_init_str, tmp);
+					break;
+
+				//all values processed
+				default:
+
+					break;
+			}
+		}
+	}
+}
+
+//process data from controller
+//packet format: key|platform|type|packet_id|comm|val1|val2|val3|checksum|\n
+void getSerialData(int port) {
+	int valuesLoadedLocal = 0; //to ensure that only one word is processed at a time, mitigating the effects of packet flooding
+	while(serialDataAvail(port) > 0 && valuesLoadedLocal == 0) {
+		char c = (char)serialGetchar(port);
+		DEBUG("%c", c);
+		if(c == '|') {
+			valuesLoaded += 1;
+			valuesLoadedLocal += 1;
+			//preemptively ignore packets
+			switch(valuesLoaded) {
+				case 1:
+					if(strcmp(key_in_str, "init") != 0) {
+						key_in = atoi(key_in_str);
+						if(key_in != key) {
+							DEBUG("ignoring packet: key mismatch\n");
+							clearLine(port);
+							clearPacket();
+						}
+					}
+					else {
+						initPacketDetected = 1;
 					}
 					break;
 				case 2:
@@ -218,23 +431,31 @@ void getSerialData() {
 					if(strcmp(plat_in_str, "PING") == 0) {
 						DEBUG("responding to PING...\n");
 						sendPositionPacket(x, y, theta);
-						clearLine(serialPort);
+						clearLine(port);
 						clearPacket();
 						break;
 					}
 
-					if(plat_in != platform && plat_in) {
+					if(plat_in != platform && plat_in && initPacketDetected != 1) {
 						DEBUG("ignoring packet: platform mismatch\n");
-						clearLine(serialPort);
+						clearLine(port);
 						clearPacket();
 					}
 					break;
 				case 3:
 					type_in = atoi(type_in_str);
-					if(type_in != type && type_in != ALL_TYPES) {
+					if(type_in != type && type_in != ALL_TYPES && initPacketDetected != 1) {
 						DEBUG("ignoring packet: type mismatch\n");
-						clearLine(serialPort);
+						clearLine(port);
 						clearPacket();
+					}
+					else if(initPacketDetected == 1) {
+						if(strcmp(type_in_str, mac_address) == 0) {
+							DEBUG("extra init packet detected. sending verification.");
+							char handshake[256];
+							sprintf(handshake, "%s|%d|\n", mac_address, key);
+							serialPuts(serialXBee, handshake);
+						}
 					}
 					break;
 			}
@@ -275,7 +496,6 @@ void getSerialData() {
 				DEBUG("values: %f, %f, %f\n", val1_in, val2_in, val3_in);
 				//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
 				checksum_in = atof(checksum_in_str);
-				
 				isBad = processPacket(comm_in, val1_in, val2_in, val3_in, checksum_in);
 			}
 			if(!ignore) {
@@ -293,7 +513,7 @@ void getSerialData() {
 				}
 				//acknowledge packet
 				DEBUG("sending packet %s...\n", pString);
-				serialPuts(serialPort, pString);
+				serialPuts(port, pString);
 			}
 			else {
 				DEBUG("ignoring packet\n");
@@ -320,6 +540,7 @@ void getSerialData() {
 					strcat(type_in_str, tmp); //add next char to type
 					break;
 
+				//process platform id
 				case 3:
 					strcat(id_in_str, tmp); //add next char to id
 					break;
@@ -334,25 +555,25 @@ void getSerialData() {
 					strcat(val1_in_str, tmp); //add next char to val1
 					break;
 
-				//process val1 entry
+				//process val2 entry
 				case 6:
 					strcat(val2_in_str, tmp); //add next char to val2
 					break;
 
-				//process val1 entry
+				//process val3 entry
 				case 7:
 					strcat(val3_in_str, tmp); //add next char to val3
 					break;
 
-				//process checkSum entry
+				//process checksum entry
 				case 8:
 					strcat(checksum_in_str, tmp); //add next char to checksum
 					break;
 
-			//all values processed
-			default:
+				//all values processed
+				default:
 
-				break;
+					break;
 			}
 		}
 	}
@@ -364,7 +585,7 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 	//checkSum should be equal to the value of target_L_in + target_R_in. Otherwise, packet is bad.
 	if(checksum < val1 + val2 + val3 - 0.000001 || checksum > val1 + val2 + val3 + 0.000001) {
 		isBad = 1;
-		DEBUG("checkSum does not match: %d != %d + %d + %d\n", checksum, val1, val2, val3);
+		DEBUG("checkSum does not match: %f != %f + %f + %f\n", checksum, val1, val2, val3);
 		return isBad;
 	}
 
@@ -410,11 +631,10 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 						isBad = 1;
 					}
 					break;
-				default:
 				//BASE (Distance b/t encoder wheels)
 				case 2:
 					if(value == valueCheck && value > 0) {
-						encoderDist = (int)value;
+						encoderDist = value;
 						DEBUG("new base: %f\n", encoderDist);
 					}
 					else {
@@ -424,7 +644,7 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 				//RADIUS (Radius of encoder wheels)
 				case 3:
 					if(value == valueCheck && value > 0) {
-						radius = (int)value;
+						radius = value;
 						DEBUG("new radius: %f\n", radius);
 					}
 					else {
@@ -440,6 +660,8 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 					else {
 						DEBUG("invalid P/R resolution: %d\n", (int)value);
 					}
+					break;
+				default:
 					break;
 			}
 			break;
@@ -460,15 +682,28 @@ void sendPositionPacket(double x, double y, double theta) {
 	sprintf(packet, "%d|%d|%s|%s|%s|%s\n", key, platform, x_str, y_str, theta_str, checksum_str);
 
 	//DEBUG("sending packet: %s", packet);
-	serialPuts(serialPort, packet);
+	serialPuts(serialXBee, packet);
 }
 
 //Clears buffer up to next newline
-void clearLine(int serialPort) {
+void clearLine(int port) {
 	char x = ' ';
 	while(serialDataAvail > 0 && x != '\n') {
-		x = (char)serialGetchar(serialPort);
+		x = (char)serialGetchar(port);
 	}
+}
+
+void clearInitPacket() {
+	init_str[0] = '\0';
+	response_init_str[0] = '\0';
+	mac_init_str[0] = '\0';
+	key_init_str[0] = '\0';
+	platform_init_str[0] = '\0';
+	encoderdist_init_str[0] = '\0';
+	encoderradius_init_str[0] = '\0';
+	encoderticks_init_str[0] = '\0';
+
+	valuesLoaded = 0;
 }
 
 //Resets packet values

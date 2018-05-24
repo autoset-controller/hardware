@@ -24,7 +24,7 @@
 #define ALL_TYPES 999
 
 //Forward Decl
-void getSerialData();
+void getSerialData(int);
 int processPacket(int, double, double, double, double);
 void sendMotorPacket(int,int,int,int);
 void clearLine(int);
@@ -35,7 +35,7 @@ void writeMotors();
 
 //Serial Port Values
 int serialXBee;
-int serialMotor;
+int serialGPIO;
 
 //Motor Active Values
 int targetL, targetR;
@@ -45,8 +45,8 @@ int pausingL = 0; int pausingR = 0;
 
 //Computer Info
 char delim = '|'; //delimeter for packet processing
-int key = 1234;
-int platform = 0;
+int key = -1;
+int platform = -1;
 int type = 0; //type = 0 for motor brain, 1 for encoder brain.
 char mac_address[256]; //MAC address of brain
 
@@ -72,14 +72,11 @@ double val3_in; //value should be int greater than 0
 double checksum_in; //value should match sum of target_L_in and target_R_in
 
 int valuesLoaded = 0;
+int configured = 0;
 
 int update = 0;
 
 int main(int argc, char* argv)  {
-
-	DEBUG("Booting Motor Controllers...\n");
-	delay(2000);
-	DEBUG(" Done\n");
 
 	DEBUG("Starting Motor Brain...\n");
 
@@ -91,7 +88,7 @@ int main(int argc, char* argv)  {
 
 	wiringPiSetup();
 	serialXBee = serialOpen("/dev/ttyUSB0", 57600);
-	serialMotor = serialOpen("/dev/ttyS0", 9600);
+	serialGPIO = serialOpen("/dev/ttyS0", 9600);
 
 	//Initialize values
 	targetL = 0;
@@ -113,7 +110,7 @@ int main(int argc, char* argv)  {
 
 	//Initialize serial
 
-	if(serialXBee != -1 && serialMotor != -1) {
+	if(serialXBee != -1 && serialGPIO != -1) {
 		DEBUG("serial init successful.\n");
 	}
 	else {
@@ -121,13 +118,21 @@ int main(int argc, char* argv)  {
 	}
 	serialFlush(serialXBee);
 
-	DEBUG("Motor Brain Started.\n");
+	DEBUG("Waiting for Configuration...\n");
+
+	while (configured < 2) {
+		if(serialDataAvail(serialGPIO) > 0) {
+			getSerialData(serialGPIO);
+		}
+	}
+
+	DEBUG("Configuration Complete: key = %d, platform id = %d\n", key, platform);
 
 	//MAIN LOOP
 	while(1) {
 		//Process all data in buffer
 		if(serialDataAvail(serialXBee) > 0) {
-			getSerialData();
+			getSerialData(serialXBee);
 		}
 		//Set speeds closer to target speeds
 		if(update > 0) {
@@ -144,19 +149,21 @@ int main(int argc, char* argv)  {
 //Standard packet 1: modifies attributes: 0 = key (int), 1 = platform id (int)
 //E_STOP: sets target speeds, speeds, and accelDelay to 0, writes values to motors.
 //PAUSE: sets target speeds to 0, accelDelays to 2 seconds (overall), calls motor update.
-void getSerialData() {
-	while(serialDataAvail(serialXBee) > 0) {
-		char c = (char)serialGetchar(serialXBee);
+void getSerialData(int port) {
+	int valuesLoadedLocal = 0;
+	while(serialDataAvail(port) > 0 && valuesLoadedLocal < 1) {
+		char c = (char)serialGetchar(port);
 		DEBUG("%c", c);
 		if(c == '|') {
 			valuesLoaded += 1;
+			valuesLoadedLocal += 1;
 			//preemptively ignore packets
 			switch(valuesLoaded) {
 				case 1:
 					key_in = atoi(key_in_str);
 					if(key_in != key) {
 						DEBUG("ignoring packet: key mismatch %d != %d\n", key_in, key);
-						clearLine(serialXBee);
+						clearLine(port);
 						clearPacket();
 					}
 					break;
@@ -185,7 +192,7 @@ void getSerialData() {
 						writeMotors();
 						DEBUG("emergency stop processed\n");
 
-						clearLine(serialXBee);
+						clearLine(port);
 						clearPacket();
 					}
 					//DEBUG("Checking for PAUSE...\n");
@@ -211,14 +218,14 @@ void getSerialData() {
 						update = 1;
 						DEBUG("pause processed\n");
 
-						clearLine(serialXBee);
+						clearLine(port);
 						clearPacket();
 					}
 
 					plat_in = atoi(plat_in_str);
 					if(plat_in != platform) {
 						DEBUG("ignoring packet: platform mismatch\n");
-						clearLine(serialXBee);
+						clearLine(port);
 						clearPacket();
 					}
 					break;
@@ -226,7 +233,7 @@ void getSerialData() {
 					target_in = atoi(target_in_str);
 					if(target_in != type && target_in != ALL_TYPES) {
 						DEBUG("ignoring packet: type mismatch\n");
-						clearLine(serialXBee);
+						clearLine(port);
 						clearPacket();
 					}
 					break;
@@ -288,8 +295,14 @@ void getSerialData() {
 					pString = goodString;
 				}
 				//acknowledge packet
-				DEBUG("sending packet %s", pString);
-				serialPuts(serialXBee, pString);
+				if(port == serialXBee) {
+					DEBUG("sending packet %s", pString);
+					serialPuts(port, pString);
+				}
+				//increment configuration
+				else {
+					configured += 1;
+				}
 			}
 			else {
 				DEBUG("ignoring packet\n");
@@ -464,10 +477,10 @@ int processPacket(int comm, double val1, double val2, double val3, double checks
 
 ///HARDWARE FUNCTIONS:
 //Clears buffer up to next newline
-void clearLine(int serialPort) {
+void clearLine(int port) {
 	char x = ' ';
-	while(serialDataAvail > 0 && x != '\n') {
-		x = (char)serialGetchar(serialPort);
+	while(serialDataAvail(port) > 0 && x != '\n') {
+		x = (char)serialGetchar(port);
 	}
 }
 
@@ -549,11 +562,11 @@ void writeMotors() {
 }
 
 void sendMotorPacket(int address, int command, int speed, int accelDelay) {
-	serialPutchar(serialMotor, (char)address);
-	serialPutchar(serialMotor, (char)command);
-	serialPutchar(serialMotor, (char)speed);
+	serialPutchar(serialGPIO, (char)address);
+	serialPutchar(serialGPIO, (char)command);
+	serialPutchar(serialGPIO, (char)speed);
 	int valid = (address + command + speed) & 0b0111111;
-	serialPutchar(serialMotor, (char)valid);
+	serialPutchar(serialGPIO, (char)valid);
 	//DEBUG("sending comm %d at speed %d to %d\n", command, speed, address);
 	if(accelDelay > 0) {
 		delay(accelDelay);

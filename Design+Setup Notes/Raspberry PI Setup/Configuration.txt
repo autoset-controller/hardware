@@ -40,10 +40,10 @@ Repeat steps 1-6 for both computers:
 2. Enable UART serial port:
 	$ sudo su
 	# raspi-config
-	8. Advanced Options->A8. Serial->Disable
+	7. Advanced Options->A8. Serial->Disable
 	(This prevents boot info from being sent from the UART port, which would cause errors with the motor controllers).
 	
-	# nano /dev/cmdline.txt
+	# nano /boot/config.txt
 	At the end of the file, replace 'enable_uart=0' with 'enable_uart=1'
 	# reboot
 
